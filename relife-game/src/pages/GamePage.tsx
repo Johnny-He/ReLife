@@ -34,6 +34,15 @@ export const GamePage = () => {
     return () => unsubscribe()
   }, [isOnlineGame, syncToFirebase])
 
+  // 等待遊戲狀態載入（先檢查再存取 players）
+  if (!players || players.length === 0 || phase === 'setup') {
+    return (
+      <div className="min-h-screen bg-gray-900 flex items-center justify-center">
+        <div className="text-white text-xl">載入遊戲中...</div>
+      </div>
+    )
+  }
+
   const currentPlayer = players[currentPlayerIndex]
   const myPlayerIndex = isOnlineGame ? getMyPlayerIndex() : currentPlayerIndex
   const myPlayer = players[myPlayerIndex] || currentPlayer
@@ -42,8 +51,8 @@ export const GamePage = () => {
   // 在線上模式，顯示自己的手牌而不是當前玩家的手牌
   const displayHandPlayer = isOnlineGame ? myPlayer : currentPlayer
 
-  // 等待遊戲狀態載入
-  if (!currentPlayer || !players || players.length === 0) {
+  // 再次確認 currentPlayer 存在
+  if (!currentPlayer) {
     return (
       <div className="min-h-screen bg-gray-900 flex items-center justify-center">
         <div className="text-white text-xl">載入遊戲中...</div>

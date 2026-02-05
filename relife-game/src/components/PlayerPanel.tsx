@@ -9,6 +9,9 @@ interface PlayerPanelProps {
 }
 
 export const PlayerPanel = ({ player, isCurrentPlayer, isCompact = false }: PlayerPanelProps) => {
+  // 防護：player 未定義時不渲染
+  if (!player) return null
+
   const borderColor = isCurrentPlayer ? 'border-yellow-400' : 'border-gray-600'
   const bgColor = isCurrentPlayer ? 'bg-gray-800' : 'bg-gray-900'
 

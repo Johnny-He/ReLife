@@ -42,6 +42,15 @@ export const GamePage = () => {
   // 在線上模式，顯示自己的手牌而不是當前玩家的手牌
   const displayHandPlayer = isOnlineGame ? myPlayer : currentPlayer
 
+  // 等待遊戲狀態載入
+  if (!currentPlayer || !players || players.length === 0) {
+    return (
+      <div className="min-h-screen bg-gray-900 flex items-center justify-center">
+        <div className="text-white text-xl">載入遊戲中...</div>
+      </div>
+    )
+  }
+
   const phaseNames: Record<string, string> = {
     event: '事件階段',
     salary: '發薪階段',

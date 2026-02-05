@@ -6,7 +6,17 @@
       "Bash(unzip:*)",
       "Bash(npm create:*)",
       "Bash(npm install:*)",
-      "Bash(npx tsc:*)"
+      "Bash(npx tsc:*)",
+      "Bash(git push:*)",
+      "Bash(npm run build:*)",
+      "Bash(npx gh-pages:*)",
+      "Bash(git fetch:*)",
+      "WebFetch(domain:johnny-he.github.io)",
+      "Bash(curl:*)",
+      "Bash(lsof:*)",
+      "Bash(git add:*)",
+      "Bash(git commit:*)",
+      "Bash(npm run deploy:*)"
     ]
   }
 }

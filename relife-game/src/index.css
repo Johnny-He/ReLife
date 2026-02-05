@@ -12,3 +12,19 @@ body {
 #root {
   min-height: 100vh;
 }
+
+/* 數值變化動畫 */
+@keyframes float-up {
+  0% {
+    opacity: 1;
+    transform: translateX(-50%) translateY(0);
+  }
+  100% {
+    opacity: 0;
+    transform: translateX(-50%) translateY(-30px);
+  }
+}
+
+.animate-float-up {
+  animation: float-up 1s ease-out forwards;
+}

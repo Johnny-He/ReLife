@@ -1,5 +1,6 @@
 import type { Player } from '../types'
 import { getJobDisplayName } from '../engine/jobSystem'
+import { useValueChange, ValueChangeIndicator } from './ValueChangeIndicator'
 
 interface PlayerPanelProps {
   player: Player
@@ -16,7 +17,7 @@ export const PlayerPanel = ({ player, isCurrentPlayer, isCompact = false }: Play
       <div className={`${bgColor} ${borderColor} border-2 rounded-lg p-2 text-sm`}>
         <div className="flex justify-between items-center mb-1">
           <span className="font-bold text-white">{player.name}</span>
-          <span className="text-yellow-400">${player.money.toLocaleString()}</span>
+          <MoneyDisplay value={player.money} size="small" />
         </div>
         <div className="flex gap-2 text-xs">
           <span className="text-blue-400">智{player.stats.intelligence}</span>
@@ -47,9 +48,7 @@ export const PlayerPanel = ({ player, isCurrentPlayer, isCompact = false }: Play
 
       {/* 金錢 */}
       <div className="mb-3">
-        <span className="text-yellow-400 text-2xl font-bold">
-          ${player.money.toLocaleString()}
-        </span>
+        <MoneyDisplay value={player.money} size="large" />
       </div>
 
       {/* 屬性 */}
@@ -87,6 +86,8 @@ interface StatBadgeProps {
 }
 
 const StatBadge = ({ label, value, color }: StatBadgeProps) => {
+  const changes = useValueChange(value)
+
   const colorClasses = {
     blue: 'bg-blue-900 text-blue-300',
     red: 'bg-red-900 text-red-300',
@@ -94,9 +95,31 @@ const StatBadge = ({ label, value, color }: StatBadgeProps) => {
   }
 
   return (
-    <div className={`${colorClasses[color]} rounded px-2 py-1 text-center`}>
+    <div className={`${colorClasses[color]} rounded px-2 py-1 text-center relative`}>
       <div className="text-xs">{label}</div>
       <div className="text-lg font-bold">{value}</div>
+      <ValueChangeIndicator changes={changes} />
     </div>
+  )
+}
+
+interface MoneyDisplayProps {
+  value: number
+  size: 'small' | 'large'
+}
+
+const MoneyDisplay = ({ value, size }: MoneyDisplayProps) => {
+  const changes = useValueChange(value)
+
+  const sizeClasses = {
+    small: 'text-yellow-400',
+    large: 'text-yellow-400 text-2xl font-bold',
+  }
+
+  return (
+    <span className={`${sizeClasses[size]} relative inline-block`}>
+      ${value.toLocaleString()}
+      <ValueChangeIndicator changes={changes} isMoney />
+    </span>
   )
 }

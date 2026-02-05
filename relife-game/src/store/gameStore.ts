@@ -9,13 +9,12 @@ import {
   nextPlayerAction,
   startDrawPhase,
   endTurn,
-  discardCard,
   drawCards,
   calculateGameResult,
 } from '../engine'
 import { playCard, canPlayCard, applyStatChoice } from '../engine/cardEffects'
 import { applyForJob, getAvailableJobs, canPromote, promote } from '../engine/jobSystem'
-import { resolveExplore, exploreLocations } from '../data/locations'
+import { resolveExplore } from '../data/locations'
 
 // UI 專用的額外狀態
 interface UIState {
@@ -544,7 +543,7 @@ export const useGameStore = create<GameStore>((set, get) => ({
     const state = get()
     if (!state.pendingFunctionCard) return
 
-    const { card, cardIndex, sourcePlayerIndex, targetPlayerId } = state.pendingFunctionCard
+    const { card, cardIndex, sourcePlayerIndex } = state.pendingFunctionCard
     const sourcePlayer = state.players[sourcePlayerIndex]
 
     // 執行功能卡效果

@@ -1,8 +1,12 @@
 import { useGameStore } from '../store/gameStore'
-import { jobs, getJobsByCategory } from '../data/jobs'
+import { getJobsByCategory } from '../data/jobs'
 import { canPromote } from '../engine/jobSystem'
 
-export const JobBoard = () => {
+interface JobBoardProps {
+  disabled?: boolean
+}
+
+export const JobBoard = ({ disabled = false }: JobBoardProps) => {
   const {
     phase,
     getCurrentPlayer,
@@ -50,7 +54,7 @@ export const JobBoard = () => {
           <div className="text-sm text-gray-300 mt-1">
             績效: {currentPlayer.performance}/9
           </div>
-          {canPlayerPromote && (
+          {canPlayerPromote && !disabled && (
             <button
               onClick={tryPromote}
               className="mt-2 bg-green-600 hover:bg-green-500 text-white text-sm px-3 py-1 rounded w-full"
@@ -77,7 +81,8 @@ export const JobBoard = () => {
                   <button
                     key={job.id}
                     onClick={() => applyJob(job.id)}
-                    className={`w-full text-left p-2 ${cat.bg} hover:brightness-125 rounded transition-all`}
+                    disabled={disabled}
+                    className={`w-full text-left p-2 ${cat.bg} ${disabled ? 'opacity-50 cursor-not-allowed' : 'hover:brightness-125'} rounded transition-all`}
                   >
                     <div className="flex justify-between items-center">
                       <span className="text-white font-bold">{job.levels[0].name}</span>

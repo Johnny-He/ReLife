@@ -1,0 +1,69 @@
+{
+  "rules": {
+    "rooms": {
+      // 可以讀取房間列表（用於 checkRoomExists）
+      ".read": true,
+
+      "$roomId": {
+        // 可以讀取特定房間
+        ".read": true,
+
+        // 可以建立新房間（當房間不存在時）
+        // 可以更新房間（當房間存在時）
+        ".write": true,
+
+        // 房間資料結構驗證
+        ".validate": "newData.hasChildren(['id', 'hostId', 'status', 'players', 'createdAt'])",
+
+        "id": {
+          // 房間 ID 必須與路徑一致
+          ".validate": "newData.isString() && newData.val() == $roomId"
+        },
+
+        "hostId": {
+          // 房主 ID 必須是字串
+          ".validate": "newData.isString() && newData.val().length > 0"
+        },
+
+        "status": {
+          // 狀態只能是 'waiting' 或 'playing'
+          ".validate": "newData.isString() && (newData.val() == 'waiting' || newData.val() == 'playing')"
+        },
+
+        "players": {
+          "$playerId": {
+            // 玩家資料驗證
+            ".validate": "newData.hasChildren(['id', 'name', 'characterId', 'ready'])",
+
+            "id": {
+              ".validate": "newData.isString() && newData.val() == $playerId"
+            },
+            "name": {
+              // 名字長度限制 1-20 字元
+              ".validate": "newData.isString() && newData.val().length >= 1 && newData.val().length <= 20"
+            },
+            "characterId": {
+              ".validate": "newData.isString()"
+            },
+            "ready": {
+              ".validate": "newData.isBoolean()"
+            }
+          }
+        },
+
+        "gameState": {
+          // 遊戲狀態必須包含基本欄位
+          ".validate": "newData.hasChildren(['playerCount', 'players', 'currentPlayerIndex', 'turn', 'phase'])"
+        },
+
+        "createdAt": {
+          ".validate": "newData.isNumber()"
+        }
+      }
+    },
+
+    // 封鎖所有其他路徑的存取
+    ".read": false,
+    ".write": false
+  }
+}

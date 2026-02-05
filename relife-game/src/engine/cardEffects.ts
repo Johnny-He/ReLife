@@ -1,4 +1,4 @@
-import type { Player, Card, CardEffect, StatType, GameState } from '../types'
+import type { Player, Card, CardEffect, StatType } from '../types'
 import { changeMoney, changeStat, changePerformance } from './calculator'
 
 // === 卡牌效果處理 ===
@@ -26,8 +26,13 @@ export const canPlayCard = (player: Player, card: Card): { canPlay: boolean; rea
   }
 
   // 工作卡需要有工作
-  if (card.type === 'work' && card.effect.type === 'performance_change' && !player.job) {
+  if (card.type === 'work' && !player.job) {
     return { canPlay: false, reason: '需要有工作才能使用' }
+  }
+
+  // 轉職卡需要有工作
+  if (card.effect.type === 'special' && card.effect.handler === 'job_change' && !player.job) {
+    return { canPlay: false, reason: '需要有工作才能轉職' }
   }
 
   return { canPlay: true }

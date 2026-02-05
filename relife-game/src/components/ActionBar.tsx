@@ -1,7 +1,11 @@
 import { useGameStore } from '../store/gameStore'
 import { exploreLocations } from '../data/locations'
 
-export const ActionBar = () => {
+interface ActionBarProps {
+  disabled?: boolean
+}
+
+export const ActionBar = ({ disabled = false }: ActionBarProps) => {
   const {
     phase,
     players,
@@ -158,6 +162,22 @@ export const ActionBar = () => {
           >
             取消
           </button>
+        </div>
+      </div>
+    )
+  }
+
+  // 線上模式但不是自己的回合
+  if (disabled) {
+    return (
+      <div className="bg-gray-800 rounded-lg p-4">
+        {lastMessage && (
+          <div className="text-yellow-400 text-center mb-3 text-sm">
+            {lastMessage}
+          </div>
+        )}
+        <div className="text-gray-500 text-center">
+          等待其他玩家行動...
         </div>
       </div>
     )

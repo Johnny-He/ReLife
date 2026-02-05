@@ -14,7 +14,7 @@ export const ResultPage = () => {
         {/* Logo 和標題 */}
         <div className="text-center mb-8">
           <img
-            src="/logo.png"
+            src={import.meta.env.BASE_URL + "logo.png"}
             alt="ReLife"
             className="h-16 mx-auto mb-4"
           />

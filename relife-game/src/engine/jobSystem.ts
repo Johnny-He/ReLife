@@ -1,4 +1,4 @@
-import type { Player, Job, Stats } from '../types'
+import type { Player, Job } from '../types'
 import { jobs, canApplyForJob } from '../data'
 
 // === 職業系統 ===

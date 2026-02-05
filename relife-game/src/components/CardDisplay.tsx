@@ -43,9 +43,9 @@ export const CardDisplay = ({
       className={`
         ${sizeClasses[size]}
         ${colors.bg}
-        ${isSelected ? 'border-yellow-400 border-4 -translate-y-2' : `${colors.border} border-2`}
-        ${disabled ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer hover:-translate-y-1'}
-        rounded-lg p-2 flex flex-col transition-all duration-200
+        ${isSelected ? 'border-yellow-400 border-4 -translate-y-4 scale-110 shadow-lg shadow-yellow-400/30' : `${colors.border} border-2`}
+        ${disabled ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer hover:-translate-y-3 hover:scale-110 hover:shadow-xl hover:shadow-black/50'}
+        rounded-lg p-2 flex flex-col transition-all duration-200 ease-out
       `}
     >
       {/* 卡牌類型 */}

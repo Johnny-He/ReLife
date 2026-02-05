@@ -1,0 +1,73 @@
+{
+  "rules": {
+    "rooms": {
+      // 列出所有房間（用於檢查房間是否存在）
+      ".read": true,
+
+      "$roomId": {
+        // 任何人都可以讀取房間資料（需要知道房間 ID）
+        ".read": true,
+
+        // 建立新房間：任何人都可以
+        ".write": "!data.exists() && newData.exists()",
+
+        // 房間基本資料驗證
+        ".validate": "newData.hasChildren(['id', 'hostId', 'status', 'players', 'createdAt'])",
+
+        "id": {
+          ".validate": "newData.val() == $roomId"
+        },
+
+        "hostId": {
+          ".validate": "newData.isString() && newData.val().length > 0"
+        },
+
+        "status": {
+          // 狀態只能是 waiting 或 playing
+          ".validate": "newData.val() == 'waiting' || newData.val() == 'playing'",
+          // 只有房主可以改變狀態
+          ".write": "data.parent().child('hostId').val() == newData.parent().child('players').child(auth.uid).child('id').val() || !auth"
+        },
+
+        "players": {
+          ".read": true,
+
+          "$playerId": {
+            // 玩家可以加入（新增自己）或更新自己的資料
+            ".write": true,
+
+            // 玩家資料驗證
+            ".validate": "newData.hasChildren(['id', 'name', 'characterId', 'ready'])",
+
+            "id": {
+              ".validate": "newData.isString()"
+            },
+            "name": {
+              ".validate": "newData.isString() && newData.val().length >= 1 && newData.val().length <= 20"
+            },
+            "characterId": {
+              ".validate": "newData.isString()"
+            },
+            "ready": {
+              ".validate": "newData.isBoolean()"
+            }
+          }
+        },
+
+        "gameState": {
+          // 只有房間內的玩家可以更新遊戲狀態
+          ".write": "data.parent().child('status').val() == 'playing'",
+          ".validate": "newData.hasChildren(['players', 'currentPlayerIndex', 'turn', 'phase'])"
+        },
+
+        "createdAt": {
+          ".validate": "newData.isNumber()"
+        }
+      }
+    },
+
+    // 封鎖其他所有路徑
+    ".read": false,
+    ".write": false
+  }
+}

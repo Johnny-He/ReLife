@@ -1,4 +1,4 @@
-import type { GameState, Player, Card, GameEvent, Character, StatType } from '../types'
+import type { GameState, Player, Character, StatType } from '../types'
 import { characters } from '../data/characters'
 import { createDeck, shuffleDeck } from '../data/cards'
 import { getEventForTurn } from '../data/events'
@@ -284,8 +284,6 @@ export const startDrawPhase = (state: GameState): GameState => {
 
     const newHand = [...player.hand, ...drawnCards]
     // 超過上限的話丟棄多餘的牌（簡化處理：從最早的開始丟）
-    const excessCards = newHand.length > MAX_HAND_SIZE ? newHand.slice(0, newHand.length - MAX_HAND_SIZE) : []
-
     return {
       ...player,
       hand: newHand.slice(-MAX_HAND_SIZE),

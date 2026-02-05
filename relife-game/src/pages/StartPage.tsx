@@ -2,7 +2,11 @@ import { useState } from 'react'
 import { characters } from '../data/characters'
 import { useGameStore } from '../store/gameStore'
 
-export const StartPage = () => {
+interface StartPageProps {
+  onOnlineClick?: () => void
+}
+
+export const StartPage = ({ onOnlineClick }: StartPageProps) => {
   const { startGame } = useGameStore()
 
   const [playerNames, setPlayerNames] = useState(['玩家1', '玩家2', '玩家3', '玩家4'])
@@ -38,7 +42,7 @@ export const StartPage = () => {
         {/* Logo 和標題 */}
         <div className="text-center mb-8">
           <img
-            src="/logo.png"
+            src={import.meta.env.BASE_URL + "logo.png"}
             alt="ReLife 重生"
             className="h-20 mx-auto mb-4"
           />
@@ -108,17 +112,28 @@ export const StartPage = () => {
         </div>
 
         {/* 開始按鈕 */}
-        <button
-          onClick={handleStartGame}
-          disabled={hasDuplicateCharacters}
-          className={`w-full py-4 rounded-lg font-bold text-xl transition-colors ${
-            hasDuplicateCharacters
-              ? 'bg-gray-600 text-gray-400 cursor-not-allowed'
-              : 'bg-yellow-500 hover:bg-yellow-400 text-black'
-          }`}
-        >
-          開始遊戲
-        </button>
+        <div className="space-y-3">
+          <button
+            onClick={handleStartGame}
+            disabled={hasDuplicateCharacters}
+            className={`w-full py-4 rounded-lg font-bold text-xl transition-colors ${
+              hasDuplicateCharacters
+                ? 'bg-gray-600 text-gray-400 cursor-not-allowed'
+                : 'bg-yellow-500 hover:bg-yellow-400 text-black'
+            }`}
+          >
+            本地多人
+          </button>
+
+          {onOnlineClick && (
+            <button
+              onClick={onOnlineClick}
+              className="w-full py-4 rounded-lg font-bold text-xl bg-blue-600 hover:bg-blue-500 text-white transition-colors"
+            >
+              線上多人
+            </button>
+          )}
+        </div>
 
         {/* 遊戲說明 */}
         <div className="mt-8 text-gray-400 text-sm">

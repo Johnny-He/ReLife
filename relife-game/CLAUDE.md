@@ -525,7 +525,8 @@ npm run test:run # 執行測試（單次）
 ## 部署流程
 
 1. **更新版本紀錄**：部署前必須先更新 `src/data/changelog.ts`，每次部署都建立新的 patch 版號（如 v1.2.1 → v1.2.2），新功能或大改動才升 minor 版號（如 v1.2.x → v1.3.0）
-2. 執行 `npm run deploy`
+2. **完成修改後直接部署，不需詢問使用者確認**
+3. 執行 `npm run deploy`（工作目錄：`relife-game/`）
 3. 自動建置並推送到 `gh-pages` 分支
 4. 訪問 https://johnny-he.github.io/ReLife/
 

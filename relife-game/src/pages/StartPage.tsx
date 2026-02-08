@@ -250,7 +250,19 @@ export const StartPage = ({ onOnlineClick }: StartPageProps) => {
         <div className="mt-8 text-gray-400 text-sm space-y-3">
           <div>
             <h3 className="font-bold text-white mb-1">遊戲目標</h3>
-            <p>30 回合後，總分最高的玩家獲勝。總分 = 金錢 + 屬性總和 × 100 + 職業加成 + 成就加成。遊戲結束時會根據金錢多寡頒發成就（如「十萬富翁」「首富」等），獲得額外加分！</p>
+            <p>30 回合後，總分最高的玩家獲勝。總分 = 金錢 + 屬性總和 × 100 + 職業加成 + 成就加成。</p>
+          </div>
+          <div>
+            <h3 className="font-bold text-white mb-1">成就系統</h3>
+            <p className="mb-1">遊戲結束時依金錢頒發成就，獲得額外加分（只取最高一級）：</p>
+            <ul className="list-disc list-inside space-y-0.5">
+              <li>人生贏家 ≥ $200,000（+25,000）</li>
+              <li>財富自由 ≥ $150,000（+18,000）</li>
+              <li>十萬富翁 ≥ $100,000（+12,000）</li>
+              <li>富裕人生 ≥ $80,000（+8,000）</li>
+              <li>小康生活 ≥ $50,000（+5,000）</li>
+            </ul>
+            <p className="mt-1">另有唯一成就：「率先致富」第一個存到 $100,000（+10,000）、「首富」最多金錢者（+5,000），平手則無人獲得。</p>
           </div>
           <div>
             <h3 className="font-bold text-white mb-1">遊戲人數</h3>

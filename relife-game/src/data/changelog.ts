@@ -1,5 +1,12 @@
 export const changelog = [
   {
+    version: 'v1.2.3',
+    date: '2026-02-08',
+    changes: [
+      '更新首頁遊戲說明，新增成就系統詳細規則',
+    ],
+  },
+  {
     version: 'v1.2.2',
     date: '2026-02-08',
     changes: [

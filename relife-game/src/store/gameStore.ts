@@ -1,5 +1,5 @@
 import { create } from 'zustand'
-import type { GameState, StatType, Card } from '../types'
+import type { GameState, StatType, Card, GameLog } from '../types'
 import {
   createInitialGameState,
   startEventPhase,
@@ -11,9 +11,13 @@ import {
   endTurn,
   drawCards,
   calculateGameResult,
+  getOverflowPlayers,
+  discardMultipleCards,
 } from '../engine'
+import { checkWinCondition } from '../engine/calculator'
 import { playCard, canPlayCard, applyStatChoice } from '../engine/cardEffects'
 import { applyForJob, getAvailableJobs, canPromote, promote } from '../engine/jobSystem'
+import { jobs } from '../data/jobs'
 import { resolveExplore } from '../data/locations'
 
 // UI 專用的額外狀態
@@ -22,6 +26,12 @@ interface UIState {
   pendingStatChoice: { cardIndex: number; value: number } | null
   pendingExplore: boolean
   pendingTargetPlayer: { action: string; cardIndex: number } | null
+  pendingParachute: { cardIndex: number } | null
+  pendingDiscard: {
+    playerIndex: number
+    discardCount: number
+    selectedCardIndices: number[]
+  } | null
 
   // 反應卡機制
   pendingFunctionCard: {
@@ -30,6 +40,14 @@ interface UIState {
     sourcePlayerIndex: number
     targetPlayerId?: string  // 如果是指定目標的卡（偷竊、陷害）
     respondingPlayerIndex: number  // 目前詢問哪位玩家
+    passedPlayerIndices: number[]  // 已經放棄回應的玩家
+  } | null
+
+  // 升遷彈窗
+  promotionInfo: {
+    playerName: string
+    jobTitle: string
+    salaryRange: string
   } | null
 
   // 訊息
@@ -38,7 +56,7 @@ interface UIState {
 
 interface GameStore extends GameState, UIState {
   // === 遊戲流程 Actions ===
-  startGame: (playerNames: string[], characterIds: string[]) => void
+  startGame: (playerNames: string[], characterIds: string[], isAIFlags?: boolean[]) => void
   nextPhase: () => void
   confirmEvent: () => void
 
@@ -48,17 +66,23 @@ interface GameStore extends GameState, UIState {
   chooseStat: (stat: StatType) => void
   chooseExploreLocation: (locationId: string) => void
   chooseTargetPlayer: (targetPlayerId: string) => void
+  applyParachute: (jobId: string) => void
   cancelPendingAction: () => void
   endPlayerTurn: () => void
 
   // === 反應卡 Actions ===
-  useInvalidCard: (cardIndex: number) => void  // 使用無效卡
+  applyInvalidCard: (cardIndex: number) => void  // 使用無效卡
   passReaction: () => void  // 不使用反應卡
   confirmFunctionCard: () => void  // 確認執行功能卡（所有人都 pass）
+
+  // === 棄牌 Actions ===
+  toggleDiscardCard: (cardIndex: number) => void
+  confirmDiscard: () => void
 
   // === 職業 Actions ===
   applyJob: (jobId: string) => void
   tryPromote: () => void
+  dismissPromotion: () => void
 
   // === 工具函數 ===
   getCurrentPlayer: () => GameState['players'][0] | null
@@ -74,26 +98,40 @@ const initialUIState: UIState = {
   pendingStatChoice: null,
   pendingExplore: false,
   pendingTargetPlayer: null,
+  pendingParachute: null,
+  pendingDiscard: null,
   pendingFunctionCard: null,
+  promotionInfo: null,
   lastMessage: null,
 }
 
-// 輔助函數：找到下一位持有「無效」卡的玩家（跳過出牌者）
-const findNextPlayerWithInvalidCard = (state: GameState & UIState, startFromIndex: number): number => {
+// 輔助函數：找到下一位持有「無效」卡的玩家（跳過出牌者和已放棄的玩家）
+const findNextPlayerWithInvalidCard = (
+  state: GameState & UIState,
+  startFromIndex: number,
+  passedIndices: number[] = []
+): number => {
   const playerCount = state.players.length
-  const sourceIndex = (state as any).pendingFunctionCard?.sourcePlayerIndex ?? state.currentPlayerIndex
+  const sourceIndex = state.pendingFunctionCard?.sourcePlayerIndex ?? state.currentPlayerIndex
 
   for (let i = 1; i < playerCount; i++) {
     const checkIndex = (startFromIndex + i) % playerCount
     if (checkIndex === sourceIndex) continue  // 跳過出牌者
+    if (passedIndices.includes(checkIndex)) continue  // 跳過已放棄的玩家
 
     const player = state.players[checkIndex]
-    const hasInvalidCard = player.hand.some(
+    const hasInvalidCard = (player?.hand ?? []).some(
       (card) => card.effect.type === 'special' && card.effect.handler === 'invalid'
     )
     if (hasInvalidCard) return checkIndex
   }
   return -1  // 沒有人有無效卡
+}
+
+// 輔助函數：新增行動記錄
+const addLog = (state: GameState, playerName: string, message: string, type: GameLog['type'] = 'action'): GameLog[] => {
+  const log: GameLog = { turn: state.turn, playerName, message, type }
+  return [...(state.actionLog || []), log]
 }
 
 const initialGameState: GameState = {
@@ -107,6 +145,7 @@ const initialGameState: GameState = {
   discardPile: [],
   currentEvent: null,
   eventLog: [],
+  actionLog: [],
   selectedCardIndex: null,
   showEventModal: false,
 }
@@ -117,8 +156,8 @@ export const useGameStore = create<GameStore>((set, get) => ({
 
   // === 遊戲流程 ===
 
-  startGame: (playerNames, characterIds) => {
-    const gameState = createInitialGameState(playerNames, characterIds)
+  startGame: (playerNames, characterIds, isAIFlags = []) => {
+    const gameState = createInitialGameState(playerNames, characterIds, isAIFlags)
     const withEvent = startEventPhase(gameState)
     set({
       ...withEvent,
@@ -132,11 +171,32 @@ export const useGameStore = create<GameStore>((set, get) => ({
     let newState: GameState
 
     switch (state.phase) {
-      case 'event':
+      case 'event': {
         // 事件階段結束，進入發薪階段
         newState = startSalaryPhase(state)
+        // 記錄發薪
+        let salaryLogs = state.actionLog || []
+        newState.players.forEach((p, i) => {
+          const oldMoney = state.players[i]?.money ?? 0
+          const diff = p.money - oldMoney
+          if (diff > 0) {
+            salaryLogs = [...salaryLogs, { turn: state.turn, playerName: p.name, message: `領薪 +$${diff}`, type: 'system' as const }]
+          }
+        })
+        newState = { ...newState, actionLog: salaryLogs }
+        // 檢查發薪後是否有人達到 $20,000 勝利條件
+        const salaryWinner = checkWinCondition(newState.players)
+        if (salaryWinner) {
+          set({
+            ...newState,
+            phase: 'game_over',
+            lastMessage: `${salaryWinner.name} 率先達到 $20,000，獲得勝利！`,
+          })
+          return
+        }
         set({ ...newState, lastMessage: '發薪階段' })
         break
+      }
 
       case 'salary':
         // 發薪階段結束，進入行動階段
@@ -167,12 +227,31 @@ export const useGameStore = create<GameStore>((set, get) => ({
   confirmEvent: () => {
     const state = get()
     const newState = applyEventEffect(state)
+
+    // 記錄事件
+    const eventName = state.currentEvent?.name || '未知事件'
+    const eventDesc = state.currentEvent?.description || ''
+    const eventLogs = addLog(state, '系統', `${eventName}：${eventDesc}`, 'event')
+
+    // 檢查是否有人達到 $20,000 勝利條件
+    const winner = checkWinCondition(newState.players)
+    if (winner) {
+      set({
+        ...newState,
+        actionLog: eventLogs,
+        phase: 'game_over',
+        showEventModal: false,
+        lastMessage: `${winner.name} 率先達到 $20,000，獲得勝利！`,
+      })
+      return
+    }
+
     set({
       ...newState,
+      actionLog: eventLogs,
       showEventModal: false,
+      // phase 仍是 'event'，由 GamePage 的 useEffect 偵測 showEventModal=false 後推進
     })
-    // 自動進入下一階段
-    setTimeout(() => get().nextPhase(), 500)
   },
 
   // === 玩家行動 ===
@@ -197,8 +276,12 @@ export const useGameStore = create<GameStore>((set, get) => ({
       return
     }
 
-    // 功能卡需要先進入反應卡等待階段（除了無效卡本身）
-    if (card.type === 'function' && !(card.effect.type === 'special' && card.effect.handler === 'invalid')) {
+    // 功能卡需要先進入反應卡等待階段
+    // 例外：無效卡本身、陷害卡（無法被無效）
+    const isUnblockable = card.effect.type === 'special' &&
+      (card.effect.handler === 'invalid' || card.effect.handler === 'sabotage')
+
+    if (card.type === 'function' && !isUnblockable) {
       // 找到下一位有「無效」卡的玩家
       const nextRespondingIndex = findNextPlayerWithInvalidCard(state, state.currentPlayerIndex)
 
@@ -210,6 +293,7 @@ export const useGameStore = create<GameStore>((set, get) => ({
             cardIndex: state.selectedCardIndex,
             sourcePlayerIndex: state.currentPlayerIndex,
             respondingPlayerIndex: nextRespondingIndex,
+            passedPlayerIndices: [],
           },
           lastMessage: `${player.name} 想使用「${card.name}」，等待 ${state.players[nextRespondingIndex].name} 回應...`,
         })
@@ -252,6 +336,16 @@ export const useGameStore = create<GameStore>((set, get) => ({
         })
         return
       }
+      if (result.needsSelection.type === 'job') {
+        // 空降：選擇要就職的職業
+        set({
+          pendingParachute: {
+            cardIndex: state.selectedCardIndex,
+          },
+          lastMessage: result.message,
+        })
+        return
+      }
     }
 
     // 更新玩家狀態
@@ -267,9 +361,10 @@ export const useGameStore = create<GameStore>((set, get) => ({
     // 處理抽牌效果
     let newState: Partial<GameStore> = {
       players: updatedPlayers,
-      discardPile: [...state.discardPile, card],
+      discardPile: [...(state.discardPile || []), card],
       selectedCardIndex: null,
       lastMessage: result.message,
+      actionLog: addLog(state, player.name, `使用「${card.name}」：${result.message}`),
     }
 
     if (card.effect.type === 'draw_cards') {
@@ -303,12 +398,14 @@ export const useGameStore = create<GameStore>((set, get) => ({
         : p
     )
 
+    const statNames: Record<string, string> = { intelligence: '智力', stamina: '體力', charisma: '魅力' }
     set({
       players: updatedPlayers,
-      discardPile: [...state.discardPile, card],
+      discardPile: [...(state.discardPile || []), card],
       selectedCardIndex: null,
       pendingStatChoice: null,
       lastMessage: result.message,
+      actionLog: addLog(state, player.name, `使用「${card.name}」→ ${statNames[stat] || stat} ${state.pendingStatChoice.value > 0 ? '+' : ''}${state.pendingStatChoice.value}`),
     })
   },
 
@@ -317,7 +414,10 @@ export const useGameStore = create<GameStore>((set, get) => ({
     if (!state.pendingExplore) return
 
     const result = resolveExplore(locationId)
-    if (!result) return
+    if (!result) {
+      set({ pendingExplore: false, selectedCardIndex: null, lastMessage: '探險失敗' })
+      return
+    }
 
     const player = state.players[state.currentPlayerIndex]
     let updatedPlayer = player
@@ -357,7 +457,7 @@ export const useGameStore = create<GameStore>((set, get) => ({
         hand: updatedPlayer.hand.filter((_, i) => i !== state.selectedCardIndex),
       }
       set({
-        discardPile: [...state.discardPile, card],
+        discardPile: [...(state.discardPile || []), card],
       })
     }
 
@@ -365,11 +465,13 @@ export const useGameStore = create<GameStore>((set, get) => ({
       i === state.currentPlayerIndex ? updatedPlayer : p
     )
 
+    const explorePlayer = state.players[state.currentPlayerIndex]
     set({
       players: updatedPlayers,
       pendingExplore: false,
       selectedCardIndex: null,
       lastMessage: `${result.location.name}：${result.outcome.description}`,
+      actionLog: addLog(state, explorePlayer.name, `探險「${result.location.name}」：${result.outcome.description}`),
     })
   },
 
@@ -384,21 +486,22 @@ export const useGameStore = create<GameStore>((set, get) => ({
     const targetPlayer = state.players[targetIndex]
 
     if (!targetPlayer || targetIndex === state.currentPlayerIndex) {
-      set({ lastMessage: '無效的目標' })
+      set({ pendingTargetPlayer: null, selectedCardIndex: null, lastMessage: '無效的目標' })
       return
     }
 
-    let updatedPlayers = [...state.players]
+    let updatedPlayers = [...(state.players || [])]
     let message = ''
 
     switch (action) {
       case 'steal': {
         // 偷竊：隨機抽取目標玩家一張手牌
-        if (targetPlayer.hand.length === 0) {
-          set({ lastMessage: `${targetPlayer.name} 沒有手牌可偷` })
+        const targetHand = targetPlayer.hand ?? []
+        if (targetHand.length === 0) {
+          set({ pendingTargetPlayer: null, selectedCardIndex: null, lastMessage: `${targetPlayer.name} 沒有手牌可偷` })
           return
         }
-        const randomIndex = Math.floor(Math.random() * targetPlayer.hand.length)
+        const randomIndex = Math.floor(Math.random() * targetHand.length)
         const stolenCard = targetPlayer.hand[randomIndex]
 
         updatedPlayers = updatedPlayers.map((p, i) => {
@@ -448,17 +551,87 @@ export const useGameStore = create<GameStore>((set, get) => ({
         break
       }
 
+      case 'robbery': {
+        // 搶劫：檢視目標玩家手牌並拿走一張（目前簡化為隨機抽取最好的牌）
+        const targetHand = targetPlayer.hand ?? []
+        if (targetHand.length === 0) {
+          set({ pendingTargetPlayer: null, selectedCardIndex: null, lastMessage: `${targetPlayer.name} 沒有手牌可搶` })
+          return
+        }
+        // 簡化處理：隨機選一張（完整版應該讓玩家選擇）
+        const randomIndex = Math.floor(Math.random() * targetHand.length)
+        const robbedCard = targetPlayer.hand[randomIndex]
+
+        updatedPlayers = updatedPlayers.map((p, i) => {
+          if (i === state.currentPlayerIndex) {
+            return {
+              ...p,
+              hand: [...p.hand.filter((_, ci) => ci !== cardIndex), robbedCard],
+            }
+          }
+          if (i === targetIndex) {
+            return {
+              ...p,
+              hand: p.hand.filter((_, ci) => ci !== randomIndex),
+            }
+          }
+          return p
+        })
+        message = `搶劫 ${targetPlayer.name}，拿走了「${robbedCard.name}」！`
+        break
+      }
+
+
       default:
-        set({ lastMessage: '未知的行動' })
+        set({ pendingTargetPlayer: null, selectedCardIndex: null, lastMessage: '未知的行動' })
         return
     }
 
     set({
       players: updatedPlayers,
-      discardPile: [...state.discardPile, card],
+      discardPile: [...(state.discardPile || []), card],
       pendingTargetPlayer: null,
       selectedCardIndex: null,
       lastMessage: message,
+      actionLog: addLog(state, currentPlayer.name, message),
+    })
+  },
+
+  applyParachute: (jobId: string) => {
+    const state = get()
+    if (!state.pendingParachute) return
+
+    const { cardIndex } = state.pendingParachute
+    const player = state.players[state.currentPlayerIndex]
+    const job = jobs.find(j => j.id === jobId)
+
+    if (!job) {
+      set({ pendingParachute: null, selectedCardIndex: null, lastMessage: '無效的職業' })
+      return
+    }
+
+    const updatedPlayers = state.players.map((p, i) => {
+      if (i === state.currentPlayerIndex) {
+        return {
+          ...p,
+          hand: p.hand.filter((_, ci) => ci !== cardIndex),
+          job,
+          jobLevel: 0,
+          performance: 0,
+        }
+      }
+      return p
+    })
+
+    const card = player.hand[cardIndex]
+    const message = `使用空降，直接就職「${job.levels[0].name}」！`
+    set({
+      players: updatedPlayers,
+      discardPile: [...(state.discardPile || []), card],
+      pendingParachute: null,
+      selectedCardIndex: null,
+      lastMessage: message,
+      actionLog: addLog(state, player.name, message),
     })
   },
 
@@ -467,15 +640,80 @@ export const useGameStore = create<GameStore>((set, get) => ({
       pendingStatChoice: null,
       pendingExplore: false,
       pendingTargetPlayer: null,
+      pendingParachute: null,
+      pendingDiscard: null,
       pendingFunctionCard: null,
       selectedCardIndex: null,
       lastMessage: '已取消',
     })
   },
 
+  // === 棄牌 ===
+
+  toggleDiscardCard: (cardIndex: number) => {
+    const state = get()
+    if (!state.pendingDiscard) return
+
+    const { selectedCardIndices, discardCount } = state.pendingDiscard
+    const isSelected = selectedCardIndices.includes(cardIndex)
+
+    let newSelected: number[]
+    if (isSelected) {
+      newSelected = selectedCardIndices.filter(i => i !== cardIndex)
+    } else {
+      if (selectedCardIndices.length >= discardCount) return
+      newSelected = [...selectedCardIndices, cardIndex]
+    }
+
+    set({
+      pendingDiscard: {
+        ...state.pendingDiscard,
+        selectedCardIndices: newSelected,
+      },
+    })
+  },
+
+  confirmDiscard: () => {
+    const state = get()
+    if (!state.pendingDiscard) return
+
+    const { playerIndex, discardCount, selectedCardIndices } = state.pendingDiscard
+    if (selectedCardIndices.length !== discardCount) return
+
+    const player = state.players[playerIndex]
+    const afterDiscard = discardMultipleCards(state, playerIndex, selectedCardIndices)
+
+    const cardNames = selectedCardIndices.map(i => player.hand[i]?.name).filter(Boolean).join('、')
+    const message = `${player.name} 丟棄了 ${cardNames}`
+
+    // 檢查是否還有其他玩家需要棄牌
+    const overflowPlayers = getOverflowPlayers(afterDiscard.players)
+
+    if (overflowPlayers.length > 0) {
+      const next = overflowPlayers[0]
+      set({
+        ...afterDiscard,
+        pendingDiscard: {
+          playerIndex: next.playerIndex,
+          discardCount: next.discardCount,
+          selectedCardIndices: [],
+        },
+        lastMessage: `${afterDiscard.players[next.playerIndex].name} 手牌超過上限，需要丟棄 ${next.discardCount} 張`,
+        actionLog: addLog(state, player.name, message),
+      })
+    } else {
+      set({
+        ...afterDiscard,
+        pendingDiscard: null,
+        lastMessage: '抽牌階段',
+        actionLog: addLog(state, player.name, message),
+      })
+    }
+  },
+
   // === 反應卡 ===
 
-  useInvalidCard: (invalidCardIndex: number) => {
+  applyInvalidCard: (invalidCardIndex: number) => {
     const state = get()
     if (!state.pendingFunctionCard) return
 
@@ -506,12 +744,14 @@ export const useGameStore = create<GameStore>((set, get) => ({
       return p
     })
 
+    const invalidMsg = `使用「無效」卡，取消了 ${sourcePlayer.name} 的「${functionCard.name}」`
     set({
       players: updatedPlayers,
-      discardPile: [...state.discardPile, functionCard, invalidCard],
+      discardPile: [...(state.discardPile || []), functionCard, invalidCard],
       pendingFunctionCard: null,
       selectedCardIndex: null,
       lastMessage: `${respondingPlayer.name} 使用「無效」卡，${sourcePlayer.name} 的「${functionCard.name}」被取消！`,
+      actionLog: addLog(state, respondingPlayer.name, invalidMsg),
     })
   },
 
@@ -519,10 +759,13 @@ export const useGameStore = create<GameStore>((set, get) => ({
     const state = get()
     if (!state.pendingFunctionCard) return
 
-    const { sourcePlayerIndex, respondingPlayerIndex } = state.pendingFunctionCard
+    const { sourcePlayerIndex, respondingPlayerIndex, passedPlayerIndices } = state.pendingFunctionCard
 
-    // 找下一位有無效卡的玩家
-    const nextIndex = findNextPlayerWithInvalidCard(state, respondingPlayerIndex)
+    // 將當前玩家加入已放棄列表（Firebase 同步後 passedPlayerIndices 可能是 undefined）
+    const newPassedIndices = [...(passedPlayerIndices ?? []), respondingPlayerIndex]
+
+    // 找下一位有無效卡的玩家（跳過已放棄的）
+    const nextIndex = findNextPlayerWithInvalidCard(state, respondingPlayerIndex, newPassedIndices)
 
     if (nextIndex === -1 || nextIndex === sourcePlayerIndex) {
       // 沒有其他人可以回應了，執行功能卡
@@ -533,6 +776,7 @@ export const useGameStore = create<GameStore>((set, get) => ({
         pendingFunctionCard: {
           ...state.pendingFunctionCard,
           respondingPlayerIndex: nextIndex,
+          passedPlayerIndices: newPassedIndices,
         },
         lastMessage: `等待 ${state.players[nextIndex].name} 回應...`,
       })
@@ -563,6 +807,18 @@ export const useGameStore = create<GameStore>((set, get) => ({
       return
     }
 
+    // 處理空降：選擇職業
+    if (result.needsSelection?.type === 'job') {
+      set({
+        pendingFunctionCard: null,
+        pendingParachute: {
+          cardIndex: cardIndex,
+        },
+        lastMessage: result.message,
+      })
+      return
+    }
+
     // 直接執行效果
     const updatedPlayers = state.players.map((p, i) =>
       i === sourcePlayerIndex
@@ -575,10 +831,11 @@ export const useGameStore = create<GameStore>((set, get) => ({
 
     let newState: Partial<GameStore> = {
       players: updatedPlayers,
-      discardPile: [...state.discardPile, card],
+      discardPile: [...(state.discardPile || []), card],
       pendingFunctionCard: null,
       selectedCardIndex: null,
       lastMessage: `${sourcePlayer.name} 使用「${card.name}」：${result.message}`,
+      actionLog: addLog(state, sourcePlayer.name, `使用「${card.name}」：${result.message}`),
     }
 
     // 處理抽牌效果
@@ -599,10 +856,25 @@ export const useGameStore = create<GameStore>((set, get) => ({
     if (newState.phase === 'draw') {
       // 所有玩家行動完畢，進入抽牌階段
       const afterDraw = startDrawPhase(newState)
-      set({
-        ...afterDraw,
-        lastMessage: '抽牌階段',
-      })
+      const overflowPlayers = getOverflowPlayers(afterDraw.players)
+
+      if (overflowPlayers.length > 0) {
+        const first = overflowPlayers[0]
+        set({
+          ...afterDraw,
+          pendingDiscard: {
+            playerIndex: first.playerIndex,
+            discardCount: first.discardCount,
+            selectedCardIndices: [],
+          },
+          lastMessage: `${afterDraw.players[first.playerIndex].name} 手牌超過上限，需要丟棄 ${first.discardCount} 張`,
+        })
+      } else {
+        set({
+          ...afterDraw,
+          lastMessage: '抽牌階段',
+        })
+      }
     } else {
       // 下一位玩家
       set({
@@ -627,6 +899,7 @@ export const useGameStore = create<GameStore>((set, get) => ({
       set({
         players: updatedPlayers,
         lastMessage: `成功應徵 ${updatedPlayer.job.levels[0].name}！`,
+        actionLog: addLog(state, player.name, `應徵「${updatedPlayer.job.levels[0].name}」成功`, 'job'),
       })
     } else {
       set({ lastMessage: '應徵失敗，不符合資格' })
@@ -642,13 +915,22 @@ export const useGameStore = create<GameStore>((set, get) => ({
       const updatedPlayers = state.players.map((p, i) =>
         i === state.currentPlayerIndex ? updatedPlayer : p
       )
+      const jobTitle = updatedPlayer.job!.levels[updatedPlayer.jobLevel].name
+      const salary = updatedPlayer.job!.levels[updatedPlayer.jobLevel].salary
+      const salaryRange = `$${salary[0].toLocaleString()}~$${salary[salary.length - 1].toLocaleString()}`
       set({
         players: updatedPlayers,
-        lastMessage: `升遷為 ${updatedPlayer.job!.levels[updatedPlayer.jobLevel].name}！`,
+        promotionInfo: { playerName: player.name, jobTitle, salaryRange },
+        lastMessage: `🎉 恭喜升遷為「${jobTitle}」！薪水: ${salaryRange}`,
+        actionLog: addLog(state, player.name, `升遷為「${jobTitle}」🎉`, 'job'),
       })
     } else {
       set({ lastMessage: '尚未滿足升遷條件' })
     }
+  },
+
+  dismissPromotion: () => {
+    set({ promotionInfo: null })
   },
 
   // === 工具函數 ===
@@ -675,7 +957,9 @@ export const useGameStore = create<GameStore>((set, get) => ({
   getGameResult: () => {
     const state = get()
     if (state.phase !== 'game_over') return null
-    return calculateGameResult(state.players)
+    // 檢查是否有人達到 $20,000 勝利條件
+    const earlyWinner = checkWinCondition(state.players)
+    return calculateGameResult(state.players, earlyWinner ?? undefined)
   },
 
   // === 重置 ===

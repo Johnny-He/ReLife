@@ -1,6 +1,6 @@
 import type { GameEvent } from '../types'
 
-// MVP: 10 回合的事件設定
+// 30 回合的事件設定（根據桌遊規則）
 // 固定事件 + 隨機事件池
 
 export const fixedEvents: GameEvent[] = [
@@ -13,24 +13,40 @@ export const fixedEvents: GameEvent[] = [
     effect: { type: 'money_change', value: 500 },
   },
   {
-    id: 'poverty-relief',
+    id: 'poverty-relief-1',
     turn: 5,
     name: '濟貧政策',
-    description: '濟貧政策上路！金錢少於 $1,500 可得補助金 $1,500。',
-    target: { type: 'poorest', count: 4 },  // 會在 engine 中過濾
+    description: '濟貧政策上路！金錢少於 $1,500 的玩家可得補助金至 $1,500。',
+    target: { type: 'poorest', count: 4 },
     effect: { type: 'special', handler: 'poverty_relief' },
   },
   {
-    id: 'competition',
+    id: 'competition-1',
     turn: 8,
     name: '小鎮競賽',
-    description: '小鎮競賽開跑！各項能力最高者獲得獎金。',
+    description: '小鎮競賽開跑！第一名 +$3,000、第二名 +$2,000、第三名 +$1,000',
     target: { type: 'all' },
-    effect: { type: 'special', handler: 'competition' },
+    effect: { type: 'special', handler: 'competition_ranked' },
+  },
+  {
+    id: 'competition-2',
+    turn: 15,
+    name: '終生成就競賽',
+    description: '終生成就競賽！第一名 +$5,000、第二名 +$3,500、第三名 +$2,000',
+    target: { type: 'all' },
+    effect: { type: 'special', handler: 'competition_achievement' },
+  },
+  {
+    id: 'poverty-relief',
+    turn: 21,
+    name: '濟貧政策',
+    description: '濟貧政策上路！場上最貧窮者補助 $3,000。',
+    target: { type: 'poorest', count: 1 },
+    effect: { type: 'special', handler: 'poverty_relief_3000' },
   },
   {
     id: 'finale',
-    turn: 10,
+    turn: 30,
     name: '城鎮大會',
     description: '遊戲結束！所有人到廣場集合，進行最終結算。',
     target: { type: 'all' },

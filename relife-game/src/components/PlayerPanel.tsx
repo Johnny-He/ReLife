@@ -1,6 +1,7 @@
 import type { Player } from '../types'
 import { getJobDisplayName } from '../engine/jobSystem'
-import { useValueChange, ValueChangeIndicator } from './ValueChangeIndicator'
+import { useValueChange } from '../hooks/useValueChange'
+import { ValueChangeIndicator } from './ValueChangeIndicator'
 
 interface PlayerPanelProps {
   player: Player
@@ -28,7 +29,7 @@ export const PlayerPanel = ({ player, isCurrentPlayer, isCompact = false }: Play
           <span className="text-pink-400">魅{player.stats.charisma}</span>
         </div>
         <div className="text-xs text-gray-400 mt-1">
-          {getJobDisplayName(player)} | 手牌 {player.hand.length}
+          {getJobDisplayName(player)} | 手牌 {player.hand?.length ?? 0}
         </div>
       </div>
     )
@@ -41,6 +42,9 @@ export const PlayerPanel = ({ player, isCurrentPlayer, isCompact = false }: Play
         <div>
           <h3 className="text-lg font-bold text-white">{player.name}</h3>
           <p className="text-sm text-gray-400">{player.character.name}</p>
+          {player.character.description && (
+            <p className="text-xs text-gray-500 mt-1 italic">{player.character.description}</p>
+          )}
         </div>
         {isCurrentPlayer && (
           <span className="bg-yellow-500 text-black text-xs px-2 py-1 rounded">
@@ -75,7 +79,7 @@ export const PlayerPanel = ({ player, isCurrentPlayer, isCompact = false }: Play
         )}
         <div className="flex justify-between text-sm mt-1">
           <span className="text-gray-400">手牌</span>
-          <span className="text-white">{player.hand.length}/10</span>
+          <span className="text-white">{player.hand?.length ?? 0}/10</span>
         </div>
       </div>
     </div>

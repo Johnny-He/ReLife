@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState } from 'react'
 import { useGameStore } from './store/gameStore'
 import { useRoomStore } from './store/roomStore'
 import { StartPage } from './pages/StartPage'
@@ -10,18 +10,8 @@ function App() {
   const { phase } = useGameStore()
   const { room, isReconnecting, error, hasStoredSession, tryReconnect, resetRoom } = useRoomStore()
   const [showLobby, setShowLobby] = useState(false)
-  const [showReconnectPrompt, setShowReconnectPrompt] = useState(false)
-  const [hasCheckedSession, setHasCheckedSession] = useState(false)
-
-  // 頁面載入時檢查是否有儲存的連線資訊
-  useEffect(() => {
-    if (hasCheckedSession) return
-
-    if (hasStoredSession()) {
-      setShowReconnectPrompt(true)
-    }
-    setHasCheckedSession(true)
-  }, [hasStoredSession, hasCheckedSession])
+  // 使用懶初始化來檢查是否有儲存的連線資訊，避免在 Effect 中 setState
+  const [showReconnectPrompt, setShowReconnectPrompt] = useState(() => hasStoredSession())
 
   // 處理重連
   const handleReconnect = async () => {
@@ -79,7 +69,7 @@ function App() {
   }
 
   // 重連失敗顯示錯誤
-  if (error && hasCheckedSession && !showLobby) {
+  if (error && !showLobby) {
     return (
       <div className="min-h-screen bg-gray-900 flex items-center justify-center p-4">
         <div className="bg-gray-800 rounded-lg p-6 max-w-md w-full text-center">

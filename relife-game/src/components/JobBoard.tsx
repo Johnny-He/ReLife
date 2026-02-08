@@ -1,25 +1,22 @@
 import { useGameStore } from '../store/gameStore'
 import { getJobsByCategory } from '../data/jobs'
-import { canPromote } from '../engine/jobSystem'
+import { getAvailableJobs, canPromote } from '../engine/jobSystem'
+import type { Player } from '../types'
 
 interface JobBoardProps {
+  player: Player
   disabled?: boolean
 }
 
-export const JobBoard = ({ disabled = false }: JobBoardProps) => {
+export const JobBoard = ({ player, disabled = false }: JobBoardProps) => {
   const {
     phase,
-    getCurrentPlayer,
-    getAvailableJobsForCurrentPlayer,
     applyJob,
     tryPromote,
   } = useGameStore()
 
-  const currentPlayer = getCurrentPlayer()
-  if (!currentPlayer) return null
-
-  const availableJobs = getAvailableJobsForCurrentPlayer()
-  const canPlayerPromote = canPromote(currentPlayer)
+  const availableJobs = getAvailableJobs(player)
+  const canPlayerPromote = canPromote(player)
   const jobsByCategory = getJobsByCategory()
 
   const categoryNames = {
@@ -42,18 +39,60 @@ export const JobBoard = ({ disabled = false }: JobBoardProps) => {
       <h3 className="text-white font-bold mb-3">職業板</h3>
 
       {/* 目前職業狀態 */}
-      {currentPlayer.job ? (
+      {player.job ? (
         <div className="mb-4 p-3 bg-gray-700 rounded">
           <div className="text-sm text-gray-400">目前職業</div>
           <div className="text-white font-bold">
-            {currentPlayer.job.levels[currentPlayer.jobLevel].name}
+            {player.job.levels[player.jobLevel].name}
           </div>
           <div className="text-xs text-gray-400 mt-1">
-            {currentPlayer.job.skill}
+            {player.job.skill}
           </div>
           <div className="text-sm text-gray-300 mt-1">
-            績效: {currentPlayer.performance}/9
+            績效: {player.performance}/9
           </div>
+          {/* 下一級升遷條件 */}
+          {player.jobLevel < 2 ? (() => {
+            const nextLevel = player.jobLevel + 1
+            const nextInfo = player.job!.levels[nextLevel]
+            const reqPerf = nextLevel * 3
+            const req = nextInfo.requiredStats
+            const stats = player.stats
+            const perfMet = player.performance >= reqPerf
+            const intMet = !req.intelligence || stats.intelligence >= req.intelligence
+            const staMet = !req.stamina || stats.stamina >= req.stamina
+            const chaMet = !req.charisma || stats.charisma >= req.charisma
+            return (
+              <div className="mt-2 p-2 bg-gray-800 rounded text-xs">
+                <div className="text-gray-400 mb-1">升遷至「{nextInfo.name}」需要：</div>
+                <div className="space-y-0.5">
+                  <div className={perfMet ? 'text-green-400' : 'text-red-400'}>
+                    {perfMet ? '✓' : '✗'} 績效 ≥ {reqPerf}（目前 {player.performance}）
+                  </div>
+                  {req.intelligence && (
+                    <div className={intMet ? 'text-green-400' : 'text-red-400'}>
+                      {intMet ? '✓' : '✗'} 智力 ≥ {req.intelligence}（目前 {stats.intelligence}）
+                    </div>
+                  )}
+                  {req.stamina && (
+                    <div className={staMet ? 'text-green-400' : 'text-red-400'}>
+                      {staMet ? '✓' : '✗'} 體力 ≥ {req.stamina}（目前 {stats.stamina}）
+                    </div>
+                  )}
+                  {req.charisma && (
+                    <div className={chaMet ? 'text-green-400' : 'text-red-400'}>
+                      {chaMet ? '✓' : '✗'} 魅力 ≥ {req.charisma}（目前 {stats.charisma}）
+                    </div>
+                  )}
+                </div>
+                <div className="text-gray-500 mt-1">
+                  升遷後薪水: ${nextInfo.salary[0].toLocaleString()}~${nextInfo.salary[nextInfo.salary.length - 1].toLocaleString()}
+                </div>
+              </div>
+            )
+          })() : (
+            <div className="mt-2 text-xs text-yellow-400">已達最高職等</div>
+          )}
           {canPlayerPromote && !disabled && (
             <button
               onClick={tryPromote}
@@ -68,7 +107,7 @@ export const JobBoard = ({ disabled = false }: JobBoardProps) => {
       )}
 
       {/* 可應徵的職業 */}
-      {!currentPlayer.job && (
+      {!player.job && (
         <div>
           <div className="text-sm text-gray-400 mb-2">
             可應徵的職業 ({availableJobs.length})：

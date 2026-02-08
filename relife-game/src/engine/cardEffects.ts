@@ -8,7 +8,7 @@ export interface CardEffectResult {
   otherPlayers?: Player[]  // 如果影響其他玩家
   message: string
   needsSelection?: {
-    type: 'stat' | 'player' | 'location'
+    type: 'stat' | 'player' | 'location' | 'job'
     options?: string[]
   }
 }
@@ -107,8 +107,8 @@ const handleSpecialEffect = (
     // 工作卡特殊效果
     case 'bootlicking':  // 拍老闆馬屁
       return {
-        player: changeStat(changeMoney(player, 500), 'charisma', -1),
-        message: '獲得 $500，魅力 -1',
+        player: changeStat(changeMoney(player, 500), 'charisma', -2),
+        message: '獲得 $500，魅力 -2',
       }
 
     case 'socializing':  // 應酬
@@ -120,10 +120,19 @@ const handleSpecialEffect = (
         message: '花費 $500，魅力 +2',
       }
 
+    case 'napping':  // 偷睡覺
+      if (player.money < 500) {
+        return { player, message: '金錢不足' }
+      }
+      return {
+        player: changeStat(changeMoney(player, -500), 'stamina', 2),
+        message: '花費 $500，體力 +2',
+      }
+
     case 'overtime':  // 加班
       return {
         player: changeStat(changeMoney(player, 1000), 'stamina', -2),
-        message: '獲得 $1000，體力 -2',
+        message: '獲得 $1,000，體力 -2',
       }
 
     // 功能卡特殊效果
@@ -134,10 +143,17 @@ const handleSpecialEffect = (
         needsSelection: { type: 'player' },
       }
 
-    case 'sabotage':  // 陷害
+    case 'robbery':  // 搶劫
       return {
         player,
-        message: '選擇要陷害的玩家和屬性',
+        message: '選擇要搶劫的玩家（可檢視手牌並拿走一張）',
+        needsSelection: { type: 'player' },
+      }
+
+    case 'sabotage':  // 陷害（無法被無效）
+      return {
+        player,
+        message: '選擇要陷害的玩家',
         needsSelection: { type: 'player' },
       }
 
@@ -151,6 +167,13 @@ const handleSpecialEffect = (
       return {
         player: { ...player, job: null, jobLevel: 0, performance: 0 },
         message: '已離職，可以應徵新工作',
+      }
+
+    case 'parachute':  // 空降：無條件就職任意職業
+      return {
+        player,
+        message: '選擇要空降的職業',
+        needsSelection: { type: 'job' },
       }
 
     // 探險結果

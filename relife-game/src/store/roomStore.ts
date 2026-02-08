@@ -108,6 +108,12 @@ export const useRoomStore = create<RoomStore>((set, get) => {
 
     createNewRoom: async (hostName, characterId) => {
       try {
+        // 先清理舊的訂閱，避免重複點擊累積監聽器
+        if (unsubscribe) {
+          unsubscribe()
+          unsubscribe = null
+        }
+
         const { roomId, playerId } = await createRoom(hostName, characterId)
 
         // 儲存到 localStorage
@@ -124,13 +130,19 @@ export const useRoomStore = create<RoomStore>((set, get) => {
           isOnlineMode: true,
           error: null,
         })
-      } catch (err) {
+      } catch {
         set({ error: '建立房間失敗' })
       }
     },
 
     joinExistingRoom: async (roomId, playerName, characterId) => {
       try {
+        // 先清理舊的訂閱，避免重複點擊累積監聽器
+        if (unsubscribe) {
+          unsubscribe()
+          unsubscribe = null
+        }
+
         const result = await joinRoom(roomId, playerName, characterId)
 
         if (!result.success) {
@@ -154,7 +166,7 @@ export const useRoomStore = create<RoomStore>((set, get) => {
         })
 
         return true
-      } catch (err) {
+      } catch {
         set({ error: '加入房間失敗' })
         return false
       }
@@ -188,6 +200,12 @@ export const useRoomStore = create<RoomStore>((set, get) => {
       const session = loadSession()
       if (!session) return false
 
+      // 先清理舊的訂閱
+      if (unsubscribe) {
+        unsubscribe()
+        unsubscribe = null
+      }
+
       set({ isReconnecting: true, error: null })
 
       try {
@@ -201,9 +219,25 @@ export const useRoomStore = create<RoomStore>((set, get) => {
 
         // 訂閱房間並檢查玩家是否還在房間中
         return new Promise<boolean>((resolve) => {
+          let hasResolved = false  // 防止多次 resolve
+
           unsubscribe = subscribeToRoom(session.roomId, (room) => {
+            // 如果已經處理過結果，後續只更新 room 狀態
+            if (hasResolved) {
+              if (room) {
+                set({ room })
+              }
+              return
+            }
+
             if (!room) {
+              hasResolved = true
               clearSession()
+              // 房間不存在時也要取消訂閱
+              if (unsubscribe) {
+                unsubscribe()
+                unsubscribe = null
+              }
               set({ isReconnecting: false, error: '房間已不存在' })
               resolve(false)
               return
@@ -212,6 +246,7 @@ export const useRoomStore = create<RoomStore>((set, get) => {
             // 檢查玩家是否還在房間中
             const playerInRoom = room.players.some(p => p.id === session.playerId)
             if (!playerInRoom) {
+              hasResolved = true
               clearSession()
               if (unsubscribe) {
                 unsubscribe()
@@ -223,6 +258,7 @@ export const useRoomStore = create<RoomStore>((set, get) => {
             }
 
             // 重連成功
+            hasResolved = true
             set({
               roomId: session.roomId,
               playerId: session.playerId,
@@ -234,7 +270,7 @@ export const useRoomStore = create<RoomStore>((set, get) => {
             resolve(true)
           })
         })
-      } catch (err) {
+      } catch {
         clearSession()
         set({ isReconnecting: false, error: '重連失敗' })
         return false

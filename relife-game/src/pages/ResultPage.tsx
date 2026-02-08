@@ -19,7 +19,16 @@ export const ResultPage = () => {
             className="h-16 mx-auto mb-4"
           />
           <h1 className="text-3xl font-bold text-white mb-2">遊戲結束</h1>
-          <p className="text-gray-400">你的人生旅程結束了</p>
+          {result.winner && (
+            <p className="text-yellow-400 text-lg font-semibold mb-1">
+              {result.winner.name} 獲勝！
+            </p>
+          )}
+          <p className="text-gray-400">
+            {result.winReason === 'money_threshold'
+              ? '率先達到 $20,000！'
+              : '最終結算分數最高'}
+          </p>
         </div>
 
         {/* 排名 */}
@@ -57,7 +66,7 @@ export const ResultPage = () => {
               </div>
 
               {/* 分數明細 */}
-              <div className="mt-3 pt-3 border-t border-gray-600 grid grid-cols-3 gap-4 text-sm">
+              <div className="mt-3 pt-3 border-t border-gray-600 grid grid-cols-4 gap-4 text-sm">
                 <div>
                   <div className="text-gray-400">金錢</div>
                   <div className="text-white">${ranking.score.money.toLocaleString()}</div>
@@ -70,7 +79,26 @@ export const ResultPage = () => {
                   <div className="text-gray-400">職業加成</div>
                   <div className="text-white">{ranking.score.jobBonus.toLocaleString()}</div>
                 </div>
+                <div>
+                  <div className="text-gray-400">成就加成</div>
+                  <div className="text-white">{ranking.score.achievements.toLocaleString()}</div>
+                </div>
               </div>
+
+              {/* 成就標籤 */}
+              {ranking.achievements.length > 0 && (
+                <div className="mt-3 pt-3 border-t border-gray-600 flex flex-wrap gap-2">
+                  {ranking.achievements.map((achievement) => (
+                    <span
+                      key={achievement.id}
+                      className="bg-yellow-600/30 text-yellow-300 text-xs px-2 py-1 rounded-full border border-yellow-500/50"
+                      title={achievement.description}
+                    >
+                      {achievement.name} (+{achievement.score.toLocaleString()})
+                    </span>
+                  ))}
+                </div>
+              )}
 
               {/* 最終狀態 */}
               <div className="mt-3 pt-3 border-t border-gray-600 flex gap-4 text-xs text-gray-400">

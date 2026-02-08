@@ -106,6 +106,7 @@ export interface Player {
   performance: number   // 績效 0-9
   hand: Card[]
   isSkipTurn: boolean   // 是否跳過本回合
+  isAI?: boolean        // 是否為電腦玩家
 }
 
 // --- 遊戲狀態 ---
@@ -138,6 +139,7 @@ export interface GameState {
   // 事件
   currentEvent: GameEvent | null
   eventLog: string[]
+  actionLog: GameLog[]
 
   // UI 狀態
   selectedCardIndex: number | null
@@ -155,11 +157,30 @@ export type GameAction =
   | { type: 'APPLY_JOB'; jobId: string }
   | { type: 'EXPLORE'; locationId: string }
 
+// --- 行動記錄 ---
+export type LogType = 'event' | 'action' | 'job' | 'system'
+
+export interface GameLog {
+  turn: number
+  playerName: string
+  message: string
+  type: LogType
+}
+
+// --- 成就 ---
+export interface Achievement {
+  id: string
+  name: string
+  description: string
+  score: number
+}
+
 // --- 計分 ---
 export interface ScoreBreakdown {
   money: number
   stats: number
   jobBonus: number
+  achievements: number
   total: number
 }
 
@@ -168,5 +189,8 @@ export interface GameResult {
     player: Player
     score: ScoreBreakdown
     rank: number
+    achievements: Achievement[]
   }[]
+  winner?: Player  // 達到 $20,000 的獲勝者（若有）
+  winReason?: 'money_threshold' | 'highest_score'  // 勝利原因
 }

@@ -1,11 +1,16 @@
+import { useShallow } from 'zustand/react/shallow'
 import { useGameStore } from '../store/gameStore'
+import { useRoomStore } from '../store/roomStore'
 import { exploreLocations } from '../data/locations'
+import { jobs } from '../data/jobs'
 
 interface ActionBarProps {
   disabled?: boolean
 }
 
 export const ActionBar = ({ disabled = false }: ActionBarProps) => {
+  const { roomId, playerId, room } = useRoomStore()
+  const isOnlineGame = !!(roomId && room?.status === 'playing')
   const {
     phase,
     players,
@@ -14,34 +19,112 @@ export const ActionBar = ({ disabled = false }: ActionBarProps) => {
     pendingStatChoice,
     pendingExplore,
     pendingTargetPlayer,
+    pendingParachute,
     pendingFunctionCard,
+    pendingDiscard,
     lastMessage,
-    playSelectedCard,
-    chooseStat,
-    chooseExploreLocation,
-    chooseTargetPlayer,
-    useInvalidCard,
-    passReaction,
-    cancelPendingAction,
-    endPlayerTurn,
-    nextPhase,
-  } = useGameStore()
+  } = useGameStore(useShallow(s => ({
+    phase: s.phase,
+    players: s.players,
+    currentPlayerIndex: s.currentPlayerIndex,
+    selectedCardIndex: s.selectedCardIndex,
+    pendingStatChoice: s.pendingStatChoice,
+    pendingExplore: s.pendingExplore,
+    pendingTargetPlayer: s.pendingTargetPlayer,
+    pendingParachute: s.pendingParachute,
+    pendingFunctionCard: s.pendingFunctionCard,
+    pendingDiscard: s.pendingDiscard,
+    lastMessage: s.lastMessage,
+  })))
+  const playSelectedCard = useGameStore(s => s.playSelectedCard)
+  const chooseStat = useGameStore(s => s.chooseStat)
+  const chooseExploreLocation = useGameStore(s => s.chooseExploreLocation)
+  const chooseTargetPlayer = useGameStore(s => s.chooseTargetPlayer)
+  const applyParachute = useGameStore(s => s.applyParachute)
+  const applyInvalidCard = useGameStore(s => s.applyInvalidCard)
+  const passReaction = useGameStore(s => s.passReaction)
+  const cancelPendingAction = useGameStore(s => s.cancelPendingAction)
+  const endPlayerTurn = useGameStore(s => s.endPlayerTurn)
+  const confirmDiscard = useGameStore(s => s.confirmDiscard)
 
   const actionNames: Record<string, string> = {
     steal: '偷竊',
     sabotage: '陷害',
   }
 
+  // 棄牌選擇 UI
+  if (pendingDiscard) {
+    const discardingPlayer = players?.[pendingDiscard.playerIndex]
+    if (!discardingPlayer) {
+      return (
+        <div className="bg-gray-800 rounded-lg p-4">
+          <div className="text-gray-400 text-center">載入中...</div>
+        </div>
+      )
+    }
+
+    if (discardingPlayer.isAI) {
+      return (
+        <div className="bg-gray-800 rounded-lg p-4">
+          <div className="text-gray-400 text-center animate-pulse">
+            🤖 {discardingPlayer.name} 正在選擇要丟棄的牌...
+          </div>
+        </div>
+      )
+    }
+
+    const { discardCount, selectedCardIndices } = pendingDiscard
+    const canConfirm = selectedCardIndices.length === discardCount
+
+    return (
+      <div className="bg-gray-800 rounded-lg p-4">
+        <div className="text-orange-400 text-center mb-2 font-bold">
+          手牌超過上限！
+        </div>
+        <div className="text-white text-center mb-3">
+          請選擇 {discardCount} 張要丟棄的牌（已選 {selectedCardIndices.length}/{discardCount}）
+        </div>
+        <div className="flex justify-center">
+          <button
+            onClick={confirmDiscard}
+            disabled={!canConfirm}
+            className={`px-6 py-2 rounded font-bold ${
+              canConfirm
+                ? 'bg-orange-600 hover:bg-orange-500 text-white'
+                : 'bg-gray-600 text-gray-400 cursor-not-allowed'
+            }`}
+          >
+            確認丟棄
+          </button>
+        </div>
+      </div>
+    )
+  }
+
   // 反應卡回應 UI
   if (pendingFunctionCard) {
     const { card: functionCard, sourcePlayerIndex, respondingPlayerIndex } = pendingFunctionCard
-    const sourcePlayer = players[sourcePlayerIndex]
-    const respondingPlayer = players[respondingPlayerIndex]
+    const sourcePlayer = players?.[sourcePlayerIndex]
+    const respondingPlayer = players?.[respondingPlayerIndex]
 
-    // 找出回應玩家手中的「無效」卡
-    const invalidCardIndices = respondingPlayer.hand
-      .map((card, index) => ({ card, index }))
-      .filter(({ card }) => card.effect.type === 'special' && card.effect.handler === 'invalid')
+    // 防護：玩家資料未準備好
+    if (!sourcePlayer || !respondingPlayer) {
+      return (
+        <div className="bg-gray-800 rounded-lg p-4">
+          <div className="text-gray-400 text-center">載入中...</div>
+        </div>
+      )
+    }
+
+    // 檢查是否輪到自己回應（AI 回應時不顯示按鈕）
+    const myIndex = room?.players.findIndex(p => p.id === playerId) ?? -1
+    const isMyResponse = isOnlineGame
+      ? myIndex === respondingPlayerIndex
+      : !respondingPlayer?.isAI
+
+    // 找出回應玩家手中的第一張「無效」卡（效果都一樣，只需要一張）
+    const firstInvalidCardIndex = (respondingPlayer?.hand ?? [])
+      .findIndex((card) => card.effect.type === 'special' && card.effect.handler === 'invalid')
 
     return (
       <div className="bg-gray-800 rounded-lg p-4">
@@ -51,29 +134,45 @@ export const ActionBar = ({ disabled = false }: ActionBarProps) => {
         <div className="text-white text-center mb-3">
           {respondingPlayer.name}，要使用「無效」卡嗎？
         </div>
-        <div className="flex justify-center gap-3 flex-wrap">
-          {invalidCardIndices.map(({ card, index }) => (
+        {isMyResponse ? (
+          <div className="flex justify-center gap-3 flex-wrap">
             <button
-              key={index}
-              onClick={() => useInvalidCard(index)}
+              onClick={() => applyInvalidCard(firstInvalidCardIndex)}
               className="bg-purple-600 hover:bg-purple-500 text-white px-4 py-2 rounded"
             >
-              使用「{card.name}」
+              使用「無效」
             </button>
-          ))}
-          <button
-            onClick={passReaction}
-            className="bg-gray-600 hover:bg-gray-500 text-white px-4 py-2 rounded"
-          >
-            跳過
-          </button>
-        </div>
+            <button
+              onClick={passReaction}
+              className="bg-gray-600 hover:bg-gray-500 text-white px-4 py-2 rounded"
+            >
+              跳過
+            </button>
+          </div>
+        ) : (
+          <div className="text-gray-400 text-center">
+            等待 {respondingPlayer.name} 回應...
+          </div>
+        )}
       </div>
     )
   }
 
+  // 判斷當前行動者是否為 AI
+  const currentPlayer = players?.[currentPlayerIndex]
+  const isCurrentAI = currentPlayer?.isAI === true
+
   // 屬性選擇 UI
   if (pendingStatChoice) {
+    if (isCurrentAI) {
+      return (
+        <div className="bg-gray-800 rounded-lg p-4">
+          <div className="text-gray-400 text-center animate-pulse">
+            🤖 {currentPlayer?.name} 正在選擇屬性...
+          </div>
+        </div>
+      )
+    }
     return (
       <div className="bg-gray-800 rounded-lg p-4">
         <div className="text-white text-center mb-3">選擇要提升的屬性</div>
@@ -109,6 +208,15 @@ export const ActionBar = ({ disabled = false }: ActionBarProps) => {
 
   // 探險地點選擇 UI
   if (pendingExplore) {
+    if (isCurrentAI) {
+      return (
+        <div className="bg-gray-800 rounded-lg p-4">
+          <div className="text-gray-400 text-center animate-pulse">
+            🤖 {currentPlayer?.name} 正在選擇探險地點...
+          </div>
+        </div>
+      )
+    }
     return (
       <div className="bg-gray-800 rounded-lg p-4">
         <div className="text-white text-center mb-3">選擇探險地點</div>
@@ -135,6 +243,15 @@ export const ActionBar = ({ disabled = false }: ActionBarProps) => {
 
   // 目標玩家選擇 UI
   if (pendingTargetPlayer) {
+    if (isCurrentAI) {
+      return (
+        <div className="bg-gray-800 rounded-lg p-4">
+          <div className="text-gray-400 text-center animate-pulse">
+            🤖 {currentPlayer?.name} 正在選擇目標...
+          </div>
+        </div>
+      )
+    }
     const otherPlayers = players.filter((_, i) => i !== currentPlayerIndex)
     const actionName = actionNames[pendingTargetPlayer.action] || pendingTargetPlayer.action
 
@@ -152,13 +269,49 @@ export const ActionBar = ({ disabled = false }: ActionBarProps) => {
             >
               {player.name}
               {pendingTargetPlayer.action === 'steal' && (
-                <span className="text-xs ml-1">({player.hand.length} 張牌)</span>
+                <span className="text-xs ml-1">({player.hand?.length ?? 0} 張牌)</span>
               )}
             </button>
           ))}
           <button
             onClick={cancelPendingAction}
             className="bg-gray-600 hover:bg-gray-500 text-white px-4 py-2 rounded"
+          >
+            取消
+          </button>
+        </div>
+      </div>
+    )
+  }
+
+  // 空降職業選擇 UI
+  if (pendingParachute) {
+    if (isCurrentAI) {
+      return (
+        <div className="bg-gray-800 rounded-lg p-4">
+          <div className="text-gray-400 text-center animate-pulse">
+            🤖 {currentPlayer?.name} 正在選擇職業...
+          </div>
+        </div>
+      )
+    }
+    return (
+      <div className="bg-gray-800 rounded-lg p-4">
+        <div className="text-white text-center mb-3">空降：選擇要就職的職業（無條件）</div>
+        <div className="flex justify-center gap-2 flex-wrap">
+          {jobs.map((job) => (
+            <button
+              key={job.id}
+              onClick={() => applyParachute(job.id)}
+              className="bg-green-700 hover:bg-green-600 text-white px-3 py-2 rounded text-sm"
+            >
+              {job.levels[0].name}
+              <span className="text-xs text-green-300 ml-1">${job.levels[0].salary[0].toLocaleString()}</span>
+            </button>
+          ))}
+          <button
+            onClick={cancelPendingAction}
+            className="bg-gray-600 hover:bg-gray-500 text-white px-3 py-2 rounded text-sm"
           >
             取消
           </button>
@@ -218,21 +371,15 @@ export const ActionBar = ({ disabled = false }: ActionBarProps) => {
         )}
 
         {phase === 'salary' && (
-          <button
-            onClick={nextPhase}
-            className="bg-blue-600 hover:bg-blue-500 text-white px-4 py-2 rounded font-bold"
-          >
-            繼續 →
-          </button>
+          <div className="text-gray-400">
+            <span className="animate-pulse">發薪階段...</span>
+          </div>
         )}
 
         {phase === 'draw' && (
-          <button
-            onClick={nextPhase}
-            className="bg-blue-600 hover:bg-blue-500 text-white px-4 py-2 rounded font-bold"
-          >
-            下一回合 →
-          </button>
+          <div className="text-gray-400">
+            <span className="animate-pulse">抽牌階段...</span>
+          </div>
         )}
       </div>
     </div>

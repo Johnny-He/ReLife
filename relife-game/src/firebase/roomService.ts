@@ -1,4 +1,4 @@
-import { ref, set, get, onValue, off, update, remove } from 'firebase/database'
+import { ref, set, get, onValue, update, remove } from 'firebase/database'
 import { database } from './config'
 import type { GameState } from '../types'
 
@@ -200,7 +200,9 @@ export const updateGameState = async (roomId: string, gameState: GameState): Pro
 export const subscribeToRoom = (roomId: string, callback: (room: Room | null) => void): (() => void) => {
   const roomRef = ref(database, `rooms/${roomId}`)
 
-  onValue(roomRef, (snapshot) => {
+  // onValue 返回 unsubscribe 函數，這才是正確的清理方式
+  // 使用 off(ref) 會移除該 ref 上所有監聯器，在多人環境下會影響其他玩家
+  const unsubscribe = onValue(roomRef, (snapshot) => {
     if (snapshot.exists()) {
       callback(snapshot.val() as Room)
     } else {
@@ -208,12 +210,48 @@ export const subscribeToRoom = (roomId: string, callback: (room: Room | null) =>
     }
   })
 
-  // 回傳取消訂閱的函數
-  return () => off(roomRef)
+  return unsubscribe
 }
 
 // 檢查房間是否存在
 export const checkRoomExists = async (roomId: string): Promise<boolean> => {
   const snapshot = await get(ref(database, `rooms/${roomId}`))
   return snapshot.exists()
+}
+
+// 清理舊房間
+const ROOM_MAX_AGE_MS = 24 * 60 * 60 * 1000 // 24 小時
+const PLAYING_MAX_AGE_MS = 6 * 60 * 60 * 1000 // playing 狀態最多 6 小時
+
+export const cleanupOldRooms = async (): Promise<{ deleted: number; total: number }> => {
+  const roomsRef = ref(database, 'rooms')
+  const snapshot = await get(roomsRef)
+
+  if (!snapshot.exists()) {
+    return { deleted: 0, total: 0 }
+  }
+
+  const now = Date.now()
+  const rooms = snapshot.val() as Record<string, Room>
+  const roomEntries = Object.entries(rooms)
+  let deleted = 0
+
+  for (const [roomId, room] of roomEntries) {
+    const age = now - (room.createdAt || 0)
+    const shouldDelete =
+      // 超過 24 小時的房間
+      age > ROOM_MAX_AGE_MS ||
+      // 或 playing 狀態超過 6 小時（可能是斷線的遊戲）
+      (room.status === 'playing' && age > PLAYING_MAX_AGE_MS) ||
+      // 或 finished 狀態超過 1 小時
+      (room.status === 'finished' && age > 60 * 60 * 1000)
+
+    if (shouldDelete) {
+      await remove(ref(database, `rooms/${roomId}`))
+      deleted++
+    }
+  }
+
+  console.log(`[Room Cleanup] 清理了 ${deleted}/${roomEntries.length} 個舊房間`)
+  return { deleted, total: roomEntries.length }
 }

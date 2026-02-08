@@ -8,19 +8,20 @@ import { changeMoney, changeStat, getRichestPlayers, getPoorestPlayers, getHighe
 // === 遊戲常數 ===
 const INITIAL_HAND_SIZE = 3
 const DRAW_PER_TURN = 2
-const MAX_HAND_SIZE = 10
-const MAX_TURNS = 10
+export const MAX_HAND_SIZE = 10
+const MAX_TURNS = 30  // 根據桌遊規則：30 回合
 
 // === 遊戲初始化 ===
 
 export const createInitialGameState = (
   playerNames: string[],
-  characterIds: string[]
+  characterIds: string[],
+  isAIFlags: boolean[] = []
 ): GameState => {
   // 建立玩家
   const players: Player[] = playerNames.map((name, index) => {
     const character = characters.find((c) => c.id === characterIds[index])!
-    return createPlayer(name, character)
+    return createPlayer(name, character, isAIFlags[index] ?? false)
   })
 
   // 建立並洗牌
@@ -45,12 +46,13 @@ export const createInitialGameState = (
     discardPile: [],
     currentEvent: null,
     eventLog: [],
+    actionLog: [],
     selectedCardIndex: null,
     showEventModal: false,
   }
 }
 
-const createPlayer = (name: string, character: Character): Player => {
+const createPlayer = (name: string, character: Character, isAI: boolean = false): Player => {
   return {
     id: `player-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
     name,
@@ -62,6 +64,7 @@ const createPlayer = (name: string, character: Character): Player => {
     performance: 0,
     hand: [],
     isSkipTurn: false,
+    isAI,
   }
 }
 
@@ -84,7 +87,7 @@ export const applyEventEffect = (state: GameState): GameState => {
   if (!state.currentEvent) return state
 
   const event = state.currentEvent
-  let updatedPlayers = [...state.players]
+  let updatedPlayers = [...(state.players || [])]
   const messages: string[] = [`【${event.name}】${event.description}`]
 
   // 根據目標類型找出受影響的玩家
@@ -129,7 +132,7 @@ export const applyEventEffect = (state: GameState): GameState => {
         })
         break
 
-      case 'competition':
+      case 'competition': {
         // 競賽：各屬性最高者獲得獎金
         const statPrizes: { stat: StatType; name: string; prize: number }[] = [
           { stat: 'intelligence', name: '智力競賽', prize: 2000 },
@@ -145,6 +148,59 @@ export const applyEventEffect = (state: GameState): GameState => {
           )
         }
         break
+      }
+
+      case 'competition_ranked': {
+        // 回合 8 小鎮競賽：按總分排名發獎金
+        const prizes = [3000, 2000, 1000]
+        const ranked = [...updatedPlayers].sort((a, b) => {
+          const scoreA = a.money + (a.stats.intelligence + a.stats.stamina + a.stats.charisma) * 100
+          const scoreB = b.money + (b.stats.intelligence + b.stats.stamina + b.stats.charisma) * 100
+          return scoreB - scoreA
+        })
+
+        for (let i = 0; i < Math.min(prizes.length, ranked.length); i++) {
+          const winner = ranked[i]
+          const prize = prizes[i]
+          messages.push(`第 ${i + 1} 名：${winner.name}，獲得 $${prize.toLocaleString()}`)
+          updatedPlayers = updatedPlayers.map((player) =>
+            player.id === winner.id ? changeMoney(player, prize) : player
+          )
+        }
+        break
+      }
+
+      case 'competition_achievement': {
+        // 回合 15 終生成就競賽：按總分排名發獎金
+        const prizes = [5000, 3500, 2000]
+        const ranked = [...updatedPlayers].sort((a, b) => {
+          const scoreA = a.money + (a.stats.intelligence + a.stats.stamina + a.stats.charisma) * 100
+          const scoreB = b.money + (b.stats.intelligence + b.stats.stamina + b.stats.charisma) * 100
+          return scoreB - scoreA
+        })
+
+        for (let i = 0; i < Math.min(prizes.length, ranked.length); i++) {
+          const winner = ranked[i]
+          const prize = prizes[i]
+          messages.push(`第 ${i + 1} 名：${winner.name}，獲得 $${prize.toLocaleString()}`)
+          updatedPlayers = updatedPlayers.map((player) =>
+            player.id === winner.id ? changeMoney(player, prize) : player
+          )
+        }
+        break
+      }
+
+      case 'poverty_relief_3000': {
+        // 回合 21 濟貧：最窮者補助 $3,000
+        const poorest = getPoorestPlayers(updatedPlayers, 1)[0]
+        if (poorest) {
+          messages.push(`${poorest.name} 獲得濟貧補助金 $3,000`)
+          updatedPlayers = updatedPlayers.map((player) =>
+            player.id === poorest.id ? changeMoney(player, 3000) : player
+          )
+        }
+        break
+      }
 
       case 'game_end':
         // 遊戲結束
@@ -153,7 +209,7 @@ export const applyEventEffect = (state: GameState): GameState => {
           phase: 'game_over',
           currentEvent: null,
           showEventModal: false,
-          eventLog: [...state.eventLog, ...messages],
+          eventLog: [...(state.eventLog || []), ...messages],
         }
     }
   } else {
@@ -176,7 +232,7 @@ export const applyEventEffect = (state: GameState): GameState => {
 
     // 處理抽牌效果
     if (event.effect.type === 'draw_cards') {
-      let deck = [...state.deck]
+      let deck = [...(state.deck || [])]
       updatedPlayers = updatedPlayers.map((player) => {
         if (!targetPlayers.find((t) => t.id === player.id)) return player
 
@@ -196,7 +252,7 @@ export const applyEventEffect = (state: GameState): GameState => {
         deck,
         currentEvent: null,
         showEventModal: false,
-        eventLog: [...state.eventLog, ...messages],
+        eventLog: [...(state.eventLog || []), ...messages],
       }
     }
   }
@@ -206,7 +262,7 @@ export const applyEventEffect = (state: GameState): GameState => {
     players: updatedPlayers,
     currentEvent: null,
     showEventModal: false,
-    eventLog: [...state.eventLog, ...messages],
+    eventLog: [...(state.eventLog || []), ...messages],
   }
 }
 
@@ -267,8 +323,8 @@ export const nextPlayerAction = (state: GameState): GameState => {
 
 // 進入抽牌階段
 export const startDrawPhase = (state: GameState): GameState => {
-  let deck = [...state.deck]
-  const discardPile = [...state.discardPile]
+  let deck = [...(state.deck || [])]
+  const discardPile = [...(state.discardPile || [])]
 
   // 如果牌庫不夠，把棄牌堆洗回去
   const totalCardsToDraw = state.players.length * DRAW_PER_TURN
@@ -283,10 +339,9 @@ export const startDrawPhase = (state: GameState): GameState => {
     deck = deck.slice(drawCount)
 
     const newHand = [...player.hand, ...drawnCards]
-    // 超過上限的話丟棄多餘的牌（簡化處理：從最早的開始丟）
     return {
       ...player,
-      hand: newHand.slice(-MAX_HAND_SIZE),
+      hand: newHand,  // 不自動裁剪，由 store 處理溢出棄牌
     }
   })
 
@@ -303,8 +358,8 @@ export const startDrawPhase = (state: GameState): GameState => {
 export const endTurn = (state: GameState): GameState => {
   const nextTurn = state.turn + 1
 
-  // 檢查遊戲是否結束
-  if (nextTurn > MAX_TURNS) {
+  // 檢查遊戲是否結束（使用 state.maxTurns 而非常數）
+  if (nextTurn > state.maxTurns) {
     return {
       ...state,
       phase: 'game_over',
@@ -334,9 +389,39 @@ export const discardCard = (state: GameState, playerIndex: number, cardIndex: nu
   }
 }
 
+// 檢查哪些玩家手牌超過上限
+export const getOverflowPlayers = (players: Player[]): { playerIndex: number; discardCount: number }[] => {
+  return players
+    .map((player, index) => ({
+      playerIndex: index,
+      discardCount: player.hand.length - MAX_HAND_SIZE,
+    }))
+    .filter(entry => entry.discardCount > 0)
+}
+
+// 一次丟棄多張指定牌
+export const discardMultipleCards = (
+  state: GameState,
+  playerIndex: number,
+  cardIndices: number[]
+): GameState => {
+  const player = state.players[playerIndex]
+  const discardedCards = cardIndices.map(i => player.hand[i])
+  const indexSet = new Set(cardIndices)
+  const newHand = player.hand.filter((_, i) => !indexSet.has(i))
+
+  return {
+    ...state,
+    players: state.players.map((p, i) =>
+      i === playerIndex ? { ...p, hand: newHand } : p
+    ),
+    discardPile: [...(state.discardPile || []), ...discardedCards],
+  }
+}
+
 // 從牌庫抽牌
 export const drawCards = (state: GameState, playerIndex: number, count: number): GameState => {
-  let deck = [...state.deck]
+  let deck = [...(state.deck || [])]
 
   const drawCount = Math.min(count, deck.length)
   const drawnCards = deck.slice(0, drawCount)

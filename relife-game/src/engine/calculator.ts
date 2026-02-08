@@ -1,9 +1,17 @@
 import type { Player, Stats, ScoreBreakdown, GameResult } from '../types'
+import { evaluateAchievements } from '../data/achievements'
+
+// === 勝利條件 ===
+
+// 檢查是否有玩家達到提前勝利條件（目前停用，只以 30 回合結算）
+export const checkWinCondition = (_players: Player[]): Player | null => {
+  return null
+}
 
 // === 數值計算 ===
 
 // 計算單一玩家分數
-export const calculatePlayerScore = (player: Player): ScoreBreakdown => {
+export const calculatePlayerScore = (player: Player, achievementScore = 0): ScoreBreakdown => {
   const statsTotal = player.stats.intelligence + player.stats.stamina + player.stats.charisma
 
   // 職業加成：有工作且等級越高分數越多
@@ -17,22 +25,44 @@ export const calculatePlayerScore = (player: Player): ScoreBreakdown => {
     money: player.money,
     stats: statsTotal * 100,  // 每點屬性值 100 分
     jobBonus,
-    total: player.money + statsTotal * 100 + jobBonus,
+    achievements: achievementScore,
+    total: player.money + statsTotal * 100 + jobBonus + achievementScore,
   }
 }
 
 // 計算遊戲結果（排名）
-export const calculateGameResult = (players: Player[]): GameResult => {
+export const calculateGameResult = (players: Player[], earlyWinner?: Player): GameResult => {
+  const achievementMap = evaluateAchievements(players)
+
   const rankings = players
-    .map((player) => ({
-      player,
-      score: calculatePlayerScore(player),
-      rank: 0,
-    }))
+    .map((player) => {
+      const playerAchievements = achievementMap.get(player.id) ?? []
+      const achievementScore = playerAchievements.reduce((sum, a) => sum + a.score, 0)
+      return {
+        player,
+        score: calculatePlayerScore(player, achievementScore),
+        achievements: playerAchievements,
+        rank: 0,
+      }
+    })
     .sort((a, b) => b.score.total - a.score.total)
     .map((item, index) => ({ ...item, rank: index + 1 }))
 
-  return { rankings }
+  // 如果有提前達到 $20,000 的獲勝者
+  if (earlyWinner) {
+    return {
+      rankings,
+      winner: earlyWinner,
+      winReason: 'money_threshold',
+    }
+  }
+
+  // 否則以最高分者為獲勝者
+  return {
+    rankings,
+    winner: rankings[0]?.player,
+    winReason: 'highest_score',
+  }
 }
 
 // === 數值變化 ===

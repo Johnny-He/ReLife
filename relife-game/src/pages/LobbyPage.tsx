@@ -1,6 +1,7 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useRoomStore } from '../store/roomStore'
 import { characters } from '../data/characters'
+import { cleanupOldRooms } from '../firebase/roomService'
 
 interface LobbyPageProps {
   onStartGame: () => void
@@ -28,6 +29,11 @@ export const LobbyPage = ({ onStartGame, onBack }: LobbyPageProps) => {
   const [selectedCharacter, setSelectedCharacter] = useState(characters[0].id)
   const [joinRoomId, setJoinRoomId] = useState('')
   const [isLoading, setIsLoading] = useState(false)
+
+  // 進入大廳時清理舊房間
+  useEffect(() => {
+    cleanupOldRooms().catch(console.error)
+  }, [])
 
   // 在房間中
   if (roomId && room) {

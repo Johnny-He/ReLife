@@ -20,6 +20,8 @@ export interface Character {
   initialStats: Stats
   marriageRequirement: Stats  // 結婚所需數值（MVP 暫不使用）
   description?: string
+  familyExpectation?: string  // 父母期望
+  personalDream?: string      // 自身夢想
 }
 
 // --- 職業 ---
@@ -107,6 +109,9 @@ export interface Player {
   hand: Card[]
   isSkipTurn: boolean   // 是否跳過本回合
   isAI?: boolean        // 是否為電腦玩家
+  firstJobTurn?: number       // 第一次就業的回合數
+  firstPromotionTurn?: number // 第一次升遷的回合數
+  jobChangeCount?: number     // 就業/轉職次數（含首次就業）
 }
 
 // --- 遊戲狀態 ---

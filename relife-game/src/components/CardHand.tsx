@@ -7,25 +7,28 @@ import { useGameStore } from '../store/gameStore'
 interface CardHandProps {
   cards: Card[]
   canPlay: boolean
+  canDiscard?: boolean
 }
 
-export const CardHand = ({ cards, canPlay }: CardHandProps) => {
-  const { selectedCardIndex, pendingDiscard } = useGameStore(useShallow(s => ({
+export const CardHand = ({ cards, canPlay, canDiscard = true }: CardHandProps) => {
+  const { selectedCardIndex, pendingDiscard, currentPlayerIndex } = useGameStore(useShallow(s => ({
     selectedCardIndex: s.selectedCardIndex,
     pendingDiscard: s.pendingDiscard,
+    currentPlayerIndex: s.currentPlayerIndex,
   })))
   const selectCard = useGameStore(s => s.selectCard)
   const canCurrentPlayerPlayCard = useGameStore(s => s.canCurrentPlayerPlayCard)
   const toggleDiscardCard = useGameStore(s => s.toggleDiscardCard)
   const [hoveredIndex, setHoveredIndex] = useState<number | null>(null)
 
-  const isDiscardMode = !!pendingDiscard
+  const isDiscardMode = !!pendingDiscard && canDiscard
 
   // 預先計算所有卡牌的可用性，避免在 render loop 中重複呼叫
+  // currentPlayerIndex 為 dep：確保切換玩家後重新計算（避免使用上一位玩家的快取結果）
   const cardChecks = useMemo(() => {
     if (isDiscardMode) return []
     return cards.map((_, i) => canCurrentPlayerPlayCard(i))
-  }, [cards, canCurrentPlayerPlayCard, isDiscardMode])
+  }, [cards, canCurrentPlayerPlayCard, isDiscardMode, currentPlayerIndex])
 
   if (cards.length === 0) {
     return (
@@ -48,7 +51,7 @@ export const CardHand = ({ cards, canPlay }: CardHandProps) => {
           return (
             <div
               key={`${card.id}-${index}`}
-              className="relative transition-all duration-200"
+              className="relative"
               style={{ zIndex: isSelectedForDiscard ? 20 : isHovered ? 10 : 1 }}
               onMouseEnter={() => setHoveredIndex(index)}
               onMouseLeave={() => setHoveredIndex(null)}
@@ -72,12 +75,12 @@ export const CardHand = ({ cards, canPlay }: CardHandProps) => {
         // 正常模式
         const check = cardChecks[index] ?? { canPlay: false }
         const isDisabled = !canPlay || !check.canPlay
-        const isSelected = selectedCardIndex === index
+        const isSelected = canPlay && selectedCardIndex === index
 
         return (
           <div
             key={card.id}
-            className="relative transition-all duration-200"
+            className="relative"
             style={{
               zIndex: isSelected ? 20 : isHovered ? 10 : 1,
             }}

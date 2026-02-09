@@ -102,6 +102,17 @@ export const applyEventEffect = (state: GameState): GameState => {
     case 'poorest':
       targetPlayers = getPoorestPlayers(updatedPlayers, event.target.count || 1)
       break
+    case 'has_job':
+      targetPlayers = updatedPlayers.filter(p => p.job !== null)
+      break
+    case 'no_job':
+      targetPlayers = updatedPlayers.filter(p => p.job === null)
+      break
+    case 'specific_job':
+      targetPlayers = updatedPlayers.filter(p =>
+        p.job && event.target.jobIds?.includes(p.job.id)
+      )
+      break
     default:
       targetPlayers = updatedPlayers
   }
@@ -198,6 +209,57 @@ export const applyEventEffect = (state: GameState): GameState => {
           updatedPlayers = updatedPlayers.map((player) =>
             player.id === poorest.id ? changeMoney(player, 3000) : player
           )
+        }
+        break
+      }
+
+      case 'skip_turn':
+        // 目標玩家下回合暫停行動
+        updatedPlayers = updatedPlayers.map(player => {
+          if (targetPlayers.find(t => t.id === player.id)) {
+            messages.push(`${player.name} 下回合暫停行動`)
+            return { ...player, isSkipTurn: true }
+          }
+          return player
+        })
+        break
+
+      case 'pass_cards_left': {
+        // 每人將一張手牌往左傳（給下一位玩家）
+        const passIndices = updatedPlayers.map(player => {
+          if (player.hand.length === 0) return -1
+          return Math.floor(Math.random() * player.hand.length)
+        })
+        const passedCards = updatedPlayers.map((player, i) =>
+          passIndices[i] >= 0 ? player.hand[passIndices[i]] : null
+        )
+        updatedPlayers = updatedPlayers.map((player, i) => {
+          const newHand = [...player.hand]
+          if (passIndices[i] >= 0) {
+            newHand.splice(passIndices[i], 1)
+          }
+          const prevIdx = (i - 1 + updatedPlayers.length) % updatedPlayers.length
+          if (passedCards[prevIdx]) {
+            newHand.push(passedCards[prevIdx]!)
+          }
+          return { ...player, hand: newHand }
+        })
+        messages.push('所有人將一張手牌往左傳！')
+        break
+      }
+
+      case 'charity': {
+        // 慈善：最有錢的人捐錢給最窮的人
+        const richest = getRichestPlayers(updatedPlayers, 1)[0]
+        const poorest = getPoorestPlayers(updatedPlayers, 1)[0]
+        if (richest && poorest && richest.id !== poorest.id) {
+          const amount = 2000
+          updatedPlayers = updatedPlayers.map(p => {
+            if (p.id === richest.id) return changeMoney(p, -amount)
+            if (p.id === poorest.id) return changeMoney(p, amount)
+            return p
+          })
+          messages.push(`${richest.name} 捐款 $${amount.toLocaleString()} 給 ${poorest.name}`)
         }
         break
       }

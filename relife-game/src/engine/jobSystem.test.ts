@@ -59,6 +59,28 @@ const mockSingerJob: Job = {
   ],
 }
 
+const mockEngineerJob: Job = {
+  id: 'engineer',
+  name: '工程師',
+  category: 'intelligence',
+  levels: [
+    { name: '菜鳥工程師', requiredStats: { intelligence: 25, stamina: 15 }, salary: [3000, 4000, 5000] },
+    { name: '資深工程師', requiredStats: { intelligence: 30, stamina: 15, charisma: 10 }, salary: [6000, 8000, 10000] },
+    { name: '高級工程師', requiredStats: { intelligence: 30, stamina: 20, charisma: 10 }, salary: [8000, 10000, 12000, 15000] },
+  ],
+}
+
+const mockDoctorJob: Job = {
+  id: 'doctor',
+  name: '醫生',
+  category: 'intelligence',
+  levels: [
+    { name: '實習醫生', requiredStats: { intelligence: 30, stamina: 15 }, salary: [3000, 4000, 5000] },
+    { name: '住院醫生', requiredStats: { intelligence: 35, stamina: 15, charisma: 10 }, salary: [6000, 8000, 10000] },
+    { name: '主治醫生', requiredStats: { intelligence: 35, stamina: 25, charisma: 10 }, salary: [10000, 12000, 15000, 18000] },
+  ],
+}
+
 // === canPlayerApplyForJob 測試 ===
 
 describe('canPlayerApplyForJob', () => {
@@ -320,5 +342,77 @@ describe('applyJobSkillEffect', () => {
     })
     const updated = applyJobSkillEffect(player)
     expect(updated.stats.charisma).toBe(6)
+  })
+
+  it('should_not_change_stats_for_engineer', () => {
+    const player = createMockPlayer({
+      job: mockEngineerJob,
+      stats: { intelligence: 25, stamina: 15, charisma: 5 },
+    })
+    const updated = applyJobSkillEffect(player)
+    expect(updated.stats).toEqual(player.stats)
+  })
+
+  it('should_not_change_stats_for_doctor', () => {
+    const player = createMockPlayer({
+      job: mockDoctorJob,
+      stats: { intelligence: 30, stamina: 15, charisma: 5 },
+    })
+    const updated = applyJobSkillEffect(player)
+    expect(updated.stats).toEqual(player.stats)
+  })
+})
+
+// === 工程師職業測試 ===
+
+describe('engineer job', () => {
+  it('should_allow_apply_with_sufficient_stats', () => {
+    const player = createMockPlayer({
+      stats: { intelligence: 25, stamina: 15, charisma: 5 },
+    })
+    expect(canPlayerApplyForJob(player, 'engineer')).toBe(true)
+  })
+
+  it('should_reject_apply_with_insufficient_intelligence', () => {
+    const player = createMockPlayer({
+      stats: { intelligence: 20, stamina: 15, charisma: 5 },
+    })
+    expect(canPlayerApplyForJob(player, 'engineer')).toBe(false)
+  })
+
+  it('should_calculate_correct_base_salary', () => {
+    const player = createMockPlayer({
+      job: mockEngineerJob,
+      jobLevel: 0,
+      performance: 0,
+    })
+    expect(calculateSalary(player)).toBe(3000)
+  })
+})
+
+// === 醫生職業測試 ===
+
+describe('doctor job', () => {
+  it('should_allow_apply_with_sufficient_stats', () => {
+    const player = createMockPlayer({
+      stats: { intelligence: 30, stamina: 15, charisma: 5 },
+    })
+    expect(canPlayerApplyForJob(player, 'doctor')).toBe(true)
+  })
+
+  it('should_reject_apply_with_insufficient_intelligence', () => {
+    const player = createMockPlayer({
+      stats: { intelligence: 25, stamina: 15, charisma: 5 },
+    })
+    expect(canPlayerApplyForJob(player, 'doctor')).toBe(false)
+  })
+
+  it('should_calculate_correct_base_salary', () => {
+    const player = createMockPlayer({
+      job: mockDoctorJob,
+      jobLevel: 0,
+      performance: 0,
+    })
+    expect(calculateSalary(player)).toBe(3000)
   })
 })

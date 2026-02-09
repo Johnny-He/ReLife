@@ -5,6 +5,9 @@ import { StartPage } from './pages/StartPage'
 import { GamePage } from './pages/GamePage'
 import { ResultPage } from './pages/ResultPage'
 import { LobbyPage } from './pages/LobbyPage'
+import { changelog } from './data/changelog'
+
+const APP_VERSION = changelog[0]?.version ?? ''
 
 function App() {
   const { phase } = useGameStore()
@@ -28,9 +31,11 @@ function App() {
     resetRoom()
   }
 
+  let content
+
   // 重連提示彈窗
   if (showReconnectPrompt) {
-    return (
+    content = (
       <div className="min-h-screen bg-gray-900 flex items-center justify-center p-4">
         <div className="bg-gray-800 rounded-lg p-6 max-w-md w-full text-center">
           <h2 className="text-xl font-bold text-white mb-4">發現上次的連線</h2>
@@ -54,11 +59,8 @@ function App() {
         </div>
       </div>
     )
-  }
-
-  // 重連中
-  if (isReconnecting) {
-    return (
+  } else if (isReconnecting) {
+    content = (
       <div className="min-h-screen bg-gray-900 flex items-center justify-center p-4">
         <div className="bg-gray-800 rounded-lg p-6 max-w-md w-full text-center">
           <h2 className="text-xl font-bold text-white mb-4">重新連線中...</h2>
@@ -66,11 +68,8 @@ function App() {
         </div>
       </div>
     )
-  }
-
-  // 重連失敗顯示錯誤
-  if (error && !showLobby) {
-    return (
+  } else if (error && !showLobby) {
+    content = (
       <div className="min-h-screen bg-gray-900 flex items-center justify-center p-4">
         <div className="bg-gray-800 rounded-lg p-6 max-w-md w-full text-center">
           <h2 className="text-xl font-bold text-red-400 mb-4">連線失敗</h2>
@@ -86,33 +85,31 @@ function App() {
         </div>
       </div>
     )
-  }
-
-  // 線上模式：顯示大廳（等待中）
-  if (showLobby && (!room || room.status === 'waiting')) {
-    return (
+  } else if (showLobby && (!room || room.status === 'waiting')) {
+    content = (
       <LobbyPage
         onStartGame={() => setShowLobby(false)}
         onBack={() => setShowLobby(false)}
       />
     )
+  } else if (phase === 'game_over') {
+    content = <ResultPage />
+  } else if (room && room.status === 'playing') {
+    content = <GamePage />
+  } else if (phase === 'setup') {
+    content = <StartPage onOnlineClick={() => setShowLobby(true)} />
+  } else {
+    content = <GamePage />
   }
 
-  // 線上模式：遊戲進行中（重連後直接進入遊戲）
-  if (room && room.status === 'playing') {
-    return <GamePage />
-  }
-
-  // 根據遊戲階段顯示不同頁面
-  if (phase === 'setup') {
-    return <StartPage onOnlineClick={() => setShowLobby(true)} />
-  }
-
-  if (phase === 'game_over') {
-    return <ResultPage />
-  }
-
-  return <GamePage />
+  return (
+    <>
+      {content}
+      <div className="fixed bottom-2 right-3 text-gray-600 text-xs select-none pointer-events-none">
+        {APP_VERSION}
+      </div>
+    </>
+  )
 }
 
 export default App

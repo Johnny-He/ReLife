@@ -6,4 +6,7 @@ import tailwindcss from '@tailwindcss/vite'
 export default defineConfig({
   plugins: [react(), tailwindcss()],
   base: '/ReLife/',  // GitHub Pages 路徑
+  server: {
+    port: 5567,
+  },
 })

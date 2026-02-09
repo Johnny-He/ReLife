@@ -106,18 +106,7 @@ export const GamePage = () => {
     return () => clearTimeout(timer)
   }, [phase, showEventModal, nextPhase, pendingDiscard])
 
-  // 事件彈窗自動關閉
-  useEffect(() => {
-    if (!currentEvent || !showEventModal) return
-    if (isOnlineGame) return  // 線上模式由各自管理
-
-    // 顯示事件後自動確認
-    const timer = setTimeout(() => {
-      confirmEvent()
-    }, 2500)
-
-    return () => clearTimeout(timer)
-  }, [currentEvent, showEventModal, isOnlineGame, confirmEvent])
+  // 事件彈窗不再自動關閉，由玩家手動點確認
 
   // 等待遊戲狀態載入（先檢查再存取 players）
   if (!players || players.length === 0 || phase === 'setup') {
@@ -146,7 +135,9 @@ export const GamePage = () => {
 
   // 顯示手牌：棄牌模式顯示需要棄牌的玩家手牌，否則顯示「我」的手牌
   const discardingPlayer = pendingDiscard ? players[pendingDiscard.playerIndex] : null
-  const displayHandPlayer = (pendingDiscard && !discardingPlayer?.isAI)
+  // 線上模式：只有當事人看到自己的棄牌手牌，其他人看自己的手牌
+  const isMyDiscard = pendingDiscard && (!isOnlineGame || pendingDiscard.playerIndex === myPlayerIndex)
+  const displayHandPlayer = (isMyDiscard && !discardingPlayer?.isAI)
     ? discardingPlayer
     : (isOnlineGame || hasAI) ? myPlayer : currentPlayer
 
@@ -274,7 +265,7 @@ export const GamePage = () => {
           {/* 手牌區域 */}
           <div className="bg-gray-800 rounded-lg p-4">
             <h3 className="text-white font-bold mb-3">
-              {pendingDiscard && !discardingPlayer?.isAI
+              {isMyDiscard && !discardingPlayer?.isAI
                 ? `${discardingPlayer?.name} 的手牌 — 請選擇要丟棄的牌`
                 : (isOnlineGame || hasAI) ? `${myPlayer?.name} 的手牌（你）` : `${currentPlayer.name} 的手牌`
               }
@@ -282,6 +273,7 @@ export const GamePage = () => {
             <CardHand
               cards={displayHandPlayer?.hand || []}
               canPlay={phase === 'action' && canAct}
+              canDiscard={!!isMyDiscard}
             />
             {(isOnlineGame || hasAI) && !canAct && phase === 'action' && (
               <div className="text-gray-500 text-sm mt-2 text-center">

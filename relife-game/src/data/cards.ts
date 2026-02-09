@@ -39,14 +39,6 @@ export const cards: Card[] = [
     effect: { type: 'stat_change_choice', value: 1 },
     count: 40,
   },
-  {
-    id: 'field-trip',
-    type: 'study',
-    name: '校外教學',
-    description: '前往探險區域',
-    effect: { type: 'explore', location: 'random' },
-    count: 10,
-  },
 
   // === 工作卡 (Work Cards) - 免費使用，共 66 張 ===
   {
@@ -55,7 +47,7 @@ export const cards: Card[] = [
     name: '績效',
     description: '績效 +1（需有工作）',
     effect: { type: 'performance_change', value: 1 },
-    count: 28,
+    count: 20,
   },
   {
     id: 'bootlicking',
@@ -89,14 +81,6 @@ export const cards: Card[] = [
     effect: { type: 'special', handler: 'overtime' },
     count: 7,
   },
-  {
-    id: 'business-trip',
-    type: 'work',
-    name: '出差',
-    description: '前往探險區域',
-    effect: { type: 'explore', location: 'random' },
-    count: 10,
-  },
 
   // === 功能卡 (Function Cards) - 共 41 張 ===
   {
@@ -129,7 +113,7 @@ export const cards: Card[] = [
     name: '無效',
     description: '使一張功能卡無效',
     effect: { type: 'special', handler: 'invalid' },
-    count: 10,
+    count: 6,
   },
   {
     id: 'something-from-nothing',
@@ -145,7 +129,7 @@ export const cards: Card[] = [
     name: '轉職',
     description: '可拋棄原職業換尚有空缺的職業',
     effect: { type: 'special', handler: 'job_change' },
-    count: 5,
+    count: 8,
   },
   {
     id: 'parachute',
@@ -153,7 +137,7 @@ export const cards: Card[] = [
     name: '空降',
     description: '無條件就職任意職業',
     effect: { type: 'special', handler: 'parachute' },
-    count: 3,
+    count: 2,
   },
 ]
 

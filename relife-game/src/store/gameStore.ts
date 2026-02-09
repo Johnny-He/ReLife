@@ -41,6 +41,7 @@ interface UIState {
     targetPlayerId?: string  // 如果是指定目標的卡（偷竊、陷害）
     respondingPlayerIndex: number  // 目前詢問哪位玩家
     passedPlayerIndices: number[]  // 已經放棄回應的玩家
+    invalidChain?: { playerIndex: number; card: Card }[]  // 無效卡連鎖
   } | null
 
   // 升遷彈窗
@@ -109,14 +110,14 @@ const initialUIState: UIState = {
 const findNextPlayerWithInvalidCard = (
   state: GameState & UIState,
   startFromIndex: number,
-  passedIndices: number[] = []
+  passedIndices: number[] = [],
+  skipIndex?: number  // 要跳過的玩家（使用無效卡的人不能反制自己）
 ): number => {
   const playerCount = state.players.length
-  const sourceIndex = state.pendingFunctionCard?.sourcePlayerIndex ?? state.currentPlayerIndex
 
   for (let i = 1; i < playerCount; i++) {
     const checkIndex = (startFromIndex + i) % playerCount
-    if (checkIndex === sourceIndex) continue  // 跳過出牌者
+    if (skipIndex !== undefined && checkIndex === skipIndex) continue  // 跳過指定玩家
     if (passedIndices.includes(checkIndex)) continue  // 跳過已放棄的玩家
 
     const player = state.players[checkIndex]
@@ -282,8 +283,8 @@ export const useGameStore = create<GameStore>((set, get) => ({
       (card.effect.handler === 'invalid' || card.effect.handler === 'sabotage')
 
     if (card.type === 'function' && !isUnblockable) {
-      // 找到下一位有「無效」卡的玩家
-      const nextRespondingIndex = findNextPlayerWithInvalidCard(state, state.currentPlayerIndex)
+      // 找到下一位有「無效」卡的玩家（跳過出牌者自己）
+      const nextRespondingIndex = findNextPlayerWithInvalidCard(state, state.currentPlayerIndex, [], state.currentPlayerIndex)
 
       if (nextRespondingIndex !== -1) {
         // 有人可以回應，進入等待狀態
@@ -618,6 +619,8 @@ export const useGameStore = create<GameStore>((set, get) => ({
           job,
           jobLevel: 0,
           performance: 0,
+          firstJobTurn: p.firstJobTurn ?? state.turn,
+          jobChangeCount: (p.jobChangeCount ?? 0) + 1,
         }
       }
       return p
@@ -717,9 +720,8 @@ export const useGameStore = create<GameStore>((set, get) => ({
     const state = get()
     if (!state.pendingFunctionCard) return
 
-    const { card: functionCard, cardIndex: functionCardIndex, sourcePlayerIndex, respondingPlayerIndex } = state.pendingFunctionCard
+    const { respondingPlayerIndex } = state.pendingFunctionCard
     const respondingPlayer = state.players[respondingPlayerIndex]
-    const sourcePlayer = state.players[sourcePlayerIndex]
     const invalidCard = respondingPlayer.hand[invalidCardIndex]
 
     if (!invalidCard || !(invalidCard.effect.type === 'special' && invalidCard.effect.handler === 'invalid')) {
@@ -727,49 +729,152 @@ export const useGameStore = create<GameStore>((set, get) => ({
       return
     }
 
-    // 移除雙方的卡牌，都放入棄牌堆
+    // 從回應者手中移除無效卡
     const updatedPlayers = state.players.map((p, i) => {
-      if (i === sourcePlayerIndex) {
-        return {
-          ...p,
-          hand: p.hand.filter((_, ci) => ci !== functionCardIndex),
-        }
-      }
       if (i === respondingPlayerIndex) {
-        return {
-          ...p,
-          hand: p.hand.filter((_, ci) => ci !== invalidCardIndex),
-        }
+        return { ...p, hand: p.hand.filter((_, ci) => ci !== invalidCardIndex) }
       }
       return p
     })
 
-    const invalidMsg = `使用「無效」卡，取消了 ${sourcePlayer.name} 的「${functionCard.name}」`
-    set({
-      players: updatedPlayers,
-      discardPile: [...(state.discardPile || []), functionCard, invalidCard],
-      pendingFunctionCard: null,
-      selectedCardIndex: null,
-      lastMessage: `${respondingPlayer.name} 使用「無效」卡，${sourcePlayer.name} 的「${functionCard.name}」被取消！`,
-      actionLog: addLog(state, respondingPlayer.name, invalidMsg),
-    })
+    // 修正 cardIndex：若回應者就是出牌者，移除的無效卡在功能卡之前，cardIndex 需 -1
+    let adjustedCardIndex = state.pendingFunctionCard.cardIndex
+    if (respondingPlayerIndex === state.pendingFunctionCard.sourcePlayerIndex && invalidCardIndex < adjustedCardIndex) {
+      adjustedCardIndex -= 1
+    }
+
+    // 加入無效連鎖
+    const invalidChain = [
+      ...(state.pendingFunctionCard.invalidChain ?? []),
+      { playerIndex: respondingPlayerIndex, card: invalidCard },
+    ]
+
+    // 找下一位可以反制的玩家（跳過剛出無效的人）
+    const stateWithUpdatedPlayers = { ...state, players: updatedPlayers }
+    const nextIndex = findNextPlayerWithInvalidCard(
+      stateWithUpdatedPlayers,
+      respondingPlayerIndex,
+      [],  // 重置 passedIndices，新一輪反制
+      respondingPlayerIndex  // 跳過剛出無效的人
+    )
+
+    const invalidMsg = `使用「無效」卡！`
+
+    if (nextIndex === -1) {
+      // 沒有人可以反制，根據連鎖長度決定結果
+      // 奇數：原始功能卡被取消；偶數：原始功能卡生效
+      const allInvalidCards = invalidChain.map(c => c.card)
+
+      if (invalidChain.length % 2 === 1) {
+        // 奇數：功能卡被取消
+        const { card: functionCard, sourcePlayerIndex } = state.pendingFunctionCard
+        const sourcePlayer = updatedPlayers[sourcePlayerIndex]
+        const finalPlayers = updatedPlayers.map((p, i) => {
+          if (i === sourcePlayerIndex) {
+            return { ...p, hand: p.hand.filter((_, ci) => ci !== adjustedCardIndex) }
+          }
+          return p
+        })
+        const lastInvalidator = updatedPlayers[invalidChain[invalidChain.length - 1].playerIndex]
+        set({
+          players: finalPlayers,
+          discardPile: [...(state.discardPile || []), functionCard, ...allInvalidCards],
+          pendingFunctionCard: null,
+          selectedCardIndex: null,
+          lastMessage: `${lastInvalidator.name} 的「無效」生效，${sourcePlayer.name} 的「${functionCard.name}」被取消！`,
+          actionLog: addLog({ ...state, players: finalPlayers, actionLog: addLog(state, respondingPlayer.name, invalidMsg) }, lastInvalidator.name, `「無效」生效，取消了「${functionCard.name}」`),
+        })
+      } else {
+        // 偶數：功能卡生效（無效被反制）
+        const lastInvalidator = updatedPlayers[invalidChain[invalidChain.length - 1].playerIndex]
+        set({
+          players: updatedPlayers,
+          discardPile: [...(state.discardPile || []), ...allInvalidCards],
+          pendingFunctionCard: {
+            ...state.pendingFunctionCard,
+            cardIndex: adjustedCardIndex,
+            invalidChain: [],
+            passedPlayerIndices: [],
+          },
+          lastMessage: `${lastInvalidator.name} 反制成功！功能卡繼續生效。`,
+          actionLog: addLog({ ...state, players: updatedPlayers, actionLog: addLog(state, respondingPlayer.name, invalidMsg) }, lastInvalidator.name, `反制「無效」成功！`),
+        })
+        // 功能卡生效，直接執行
+        get().confirmFunctionCard()
+      }
+    } else {
+      // 有人可以反制，繼續詢問
+      set({
+        players: updatedPlayers,
+        pendingFunctionCard: {
+          ...state.pendingFunctionCard,
+          cardIndex: adjustedCardIndex,
+          respondingPlayerIndex: nextIndex,
+          passedPlayerIndices: [],
+          invalidChain,
+        },
+        lastMessage: `${respondingPlayer.name} 使用「無效」！等待 ${updatedPlayers[nextIndex].name} 回應...`,
+        actionLog: addLog(state, respondingPlayer.name, invalidMsg),
+      })
+    }
   },
 
   passReaction: () => {
     const state = get()
     if (!state.pendingFunctionCard) return
 
-    const { sourcePlayerIndex, respondingPlayerIndex, passedPlayerIndices } = state.pendingFunctionCard
+    const { respondingPlayerIndex, passedPlayerIndices, invalidChain } = state.pendingFunctionCard
 
     // 將當前玩家加入已放棄列表（Firebase 同步後 passedPlayerIndices 可能是 undefined）
     const newPassedIndices = [...(passedPlayerIndices ?? []), respondingPlayerIndex]
 
-    // 找下一位有無效卡的玩家（跳過已放棄的）
-    const nextIndex = findNextPlayerWithInvalidCard(state, respondingPlayerIndex, newPassedIndices)
+    // 判斷要跳過誰：如果有無效連鎖，跳過最後一位使用無效的人
+    const chainLength = (invalidChain ?? []).length
+    const skipIndex = chainLength > 0
+      ? invalidChain![chainLength - 1].playerIndex
+      : state.pendingFunctionCard.sourcePlayerIndex
 
-    if (nextIndex === -1 || nextIndex === sourcePlayerIndex) {
-      // 沒有其他人可以回應了，執行功能卡
-      get().confirmFunctionCard()
+    // 找下一位有無效卡的玩家
+    const nextIndex = findNextPlayerWithInvalidCard(state, respondingPlayerIndex, newPassedIndices, skipIndex)
+
+    if (nextIndex === -1) {
+      // 沒有其他人可以回應了
+      if (chainLength > 0 && chainLength % 2 === 1) {
+        // 奇數無效卡：功能卡被取消
+        const { card: functionCard, cardIndex: functionCardIndex, sourcePlayerIndex } = state.pendingFunctionCard
+        const sourcePlayer = state.players[sourcePlayerIndex]
+        const allInvalidCards = invalidChain!.map(c => c.card)
+        const lastInvalidator = state.players[invalidChain![chainLength - 1].playerIndex]
+        const updatedPlayers = state.players.map((p, i) => {
+          if (i === sourcePlayerIndex) {
+            return { ...p, hand: p.hand.filter((_, ci) => ci !== functionCardIndex) }
+          }
+          return p
+        })
+        set({
+          players: updatedPlayers,
+          discardPile: [...(state.discardPile || []), functionCard, ...allInvalidCards],
+          pendingFunctionCard: null,
+          selectedCardIndex: null,
+          lastMessage: `${lastInvalidator.name} 的「無效」生效，${sourcePlayer.name} 的「${functionCard.name}」被取消！`,
+          actionLog: addLog(state, lastInvalidator.name, `「無效」生效，取消了「${functionCard.name}」`),
+        })
+      } else {
+        // 沒有無效卡或偶數：功能卡生效
+        if (chainLength > 0) {
+          // 偶數：丟棄所有無效卡，然後執行
+          const allInvalidCards = invalidChain!.map(c => c.card)
+          set({
+            discardPile: [...(state.discardPile || []), ...allInvalidCards],
+            pendingFunctionCard: {
+              ...state.pendingFunctionCard,
+              invalidChain: [],
+              passedPlayerIndices: [],
+            },
+          })
+        }
+        get().confirmFunctionCard()
+      }
     } else {
       // 繼續詢問下一位
       set({
@@ -893,8 +998,13 @@ export const useGameStore = create<GameStore>((set, get) => ({
     const updatedPlayer = applyForJob(player, jobId)
 
     if (updatedPlayer.job) {
+      const trackedPlayer = {
+        ...updatedPlayer,
+        firstJobTurn: updatedPlayer.firstJobTurn ?? state.turn,
+        jobChangeCount: (updatedPlayer.jobChangeCount ?? 0) + 1,
+      }
       const updatedPlayers = state.players.map((p, i) =>
-        i === state.currentPlayerIndex ? updatedPlayer : p
+        i === state.currentPlayerIndex ? trackedPlayer : p
       )
       set({
         players: updatedPlayers,
@@ -911,7 +1021,10 @@ export const useGameStore = create<GameStore>((set, get) => ({
     const player = state.players[state.currentPlayerIndex]
 
     if (canPromote(player)) {
-      const updatedPlayer = promote(player)
+      const updatedPlayer = {
+        ...promote(player),
+        firstPromotionTurn: player.firstPromotionTurn ?? state.turn,
+      }
       const updatedPlayers = state.players.map((p, i) =>
         i === state.currentPlayerIndex ? updatedPlayer : p
       )

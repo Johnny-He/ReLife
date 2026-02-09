@@ -73,6 +73,52 @@ export const jobs: Job[] = [
     skill: '地下經濟（轉職需付 $8,000 退出費）',
   },
 
+  {
+    id: 'engineer',
+    name: '工程師',
+    category: 'intelligence',
+    levels: [
+      {
+        name: '菜鳥工程師',
+        requiredStats: { intelligence: 25, stamina: 15 },
+        salary: [3000, 4000, 5000],
+      },
+      {
+        name: '資深工程師',
+        requiredStats: { intelligence: 30, stamina: 15, charisma: 10 },
+        salary: [6000, 8000, 10000],
+      },
+      {
+        name: '高級工程師',
+        requiredStats: { intelligence: 30, stamina: 20, charisma: 10 },
+        salary: [8000, 10000, 12000, 15000],
+      },
+    ],
+  },
+
+  {
+    id: 'doctor',
+    name: '醫生',
+    category: 'intelligence',
+    levels: [
+      {
+        name: '實習醫生',
+        requiredStats: { intelligence: 30, stamina: 15 },
+        salary: [3000, 4000, 5000],
+      },
+      {
+        name: '住院醫生',
+        requiredStats: { intelligence: 35, stamina: 15, charisma: 10 },
+        salary: [6000, 8000, 10000],
+      },
+      {
+        name: '主治醫生',
+        requiredStats: { intelligence: 35, stamina: 25, charisma: 10 },
+        salary: [10000, 12000, 15000, 18000],
+      },
+    ],
+  },
+
   // ========== 體力型職業 ==========
   {
     id: 'worker',

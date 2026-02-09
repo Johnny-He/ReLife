@@ -63,6 +63,7 @@ export const ActionBar = ({ disabled = false }: ActionBarProps) => {
       )
     }
 
+    // AI 自動棄牌
     if (discardingPlayer.isAI) {
       return (
         <div className="bg-gray-800 rounded-lg p-4">
@@ -71,6 +72,20 @@ export const ActionBar = ({ disabled = false }: ActionBarProps) => {
           </div>
         </div>
       )
+    }
+
+    // 線上模式：只有當事人能棄自己的牌
+    if (isOnlineGame) {
+      const myIndex = room?.players.findIndex(p => p.id === playerId) ?? -1
+      if (myIndex !== pendingDiscard.playerIndex) {
+        return (
+          <div className="bg-gray-800 rounded-lg p-4">
+            <div className="text-gray-400 text-center animate-pulse">
+              等待 {discardingPlayer.name} 選擇要丟棄的牌...
+            </div>
+          </div>
+        )
+      }
     }
 
     const { discardCount, selectedCardIndices } = pendingDiscard
@@ -103,9 +118,10 @@ export const ActionBar = ({ disabled = false }: ActionBarProps) => {
 
   // 反應卡回應 UI
   if (pendingFunctionCard) {
-    const { card: functionCard, sourcePlayerIndex, respondingPlayerIndex } = pendingFunctionCard
+    const { card: functionCard, sourcePlayerIndex, respondingPlayerIndex, invalidChain } = pendingFunctionCard
     const sourcePlayer = players?.[sourcePlayerIndex]
     const respondingPlayer = players?.[respondingPlayerIndex]
+    const chainLength = (invalidChain ?? []).length
 
     // 防護：玩家資料未準備好
     if (!sourcePlayer || !respondingPlayer) {
@@ -126,19 +142,35 @@ export const ActionBar = ({ disabled = false }: ActionBarProps) => {
     const firstInvalidCardIndex = (respondingPlayer?.hand ?? [])
       .findIndex((card) => card.effect.type === 'special' && card.effect.handler === 'invalid')
 
+    // 根據連鎖狀態顯示不同提示
+    const lastInvalidator = chainLength > 0
+      ? players?.[invalidChain![chainLength - 1].playerIndex]
+      : null
+    const headerText = chainLength === 0
+      ? `⚡ ${sourcePlayer.name} 想使用「${functionCard.name}」`
+      : `⚡ ${lastInvalidator?.name} 使用了「無效」！（連鎖 ${chainLength}）`
+    const promptText = chainLength === 0
+      ? `${respondingPlayer.name}，要使用「無效」卡嗎？`
+      : `${respondingPlayer.name}，要反制嗎？`
+
     return (
       <div className="bg-gray-800 rounded-lg p-4">
         <div className="text-yellow-400 text-center mb-2">
-          ⚡ {sourcePlayer.name} 想使用「{functionCard.name}」
+          {headerText}
         </div>
         <div className="text-white text-center mb-3">
-          {respondingPlayer.name}，要使用「無效」卡嗎？
+          {promptText}
         </div>
         {isMyResponse ? (
           <div className="flex justify-center gap-3 flex-wrap">
             <button
               onClick={() => applyInvalidCard(firstInvalidCardIndex)}
-              className="bg-purple-600 hover:bg-purple-500 text-white px-4 py-2 rounded"
+              disabled={firstInvalidCardIndex === -1}
+              className={`px-4 py-2 rounded ${
+                firstInvalidCardIndex !== -1
+                  ? 'bg-purple-600 hover:bg-purple-500 text-white'
+                  : 'bg-gray-600 text-gray-400 cursor-not-allowed'
+              }`}
             >
               使用「無效」
             </button>
@@ -162,17 +194,23 @@ export const ActionBar = ({ disabled = false }: ActionBarProps) => {
   const currentPlayer = players?.[currentPlayerIndex]
   const isCurrentAI = currentPlayer?.isAI === true
 
+  // 線上模式：判斷是否是自己的行動
+  const myIndex = isOnlineGame ? (room?.players.findIndex(p => p.id === playerId) ?? -1) : -1
+  const isMyAction = !isOnlineGame || myIndex === currentPlayerIndex
+
+  // 線上模式非當事人看到的等待訊息
+  const waitingUI = (action: string) => (
+    <div className="bg-gray-800 rounded-lg p-4">
+      <div className="text-gray-400 text-center animate-pulse">
+        等待 {currentPlayer?.name} {action}...
+      </div>
+    </div>
+  )
+
   // 屬性選擇 UI
   if (pendingStatChoice) {
-    if (isCurrentAI) {
-      return (
-        <div className="bg-gray-800 rounded-lg p-4">
-          <div className="text-gray-400 text-center animate-pulse">
-            🤖 {currentPlayer?.name} 正在選擇屬性...
-          </div>
-        </div>
-      )
-    }
+    if (isCurrentAI) return waitingUI('選擇屬性')
+    if (!isMyAction) return waitingUI('選擇屬性')
     return (
       <div className="bg-gray-800 rounded-lg p-4">
         <div className="text-white text-center mb-3">選擇要提升的屬性</div>
@@ -208,15 +246,8 @@ export const ActionBar = ({ disabled = false }: ActionBarProps) => {
 
   // 探險地點選擇 UI
   if (pendingExplore) {
-    if (isCurrentAI) {
-      return (
-        <div className="bg-gray-800 rounded-lg p-4">
-          <div className="text-gray-400 text-center animate-pulse">
-            🤖 {currentPlayer?.name} 正在選擇探險地點...
-          </div>
-        </div>
-      )
-    }
+    if (isCurrentAI) return waitingUI('選擇探險地點')
+    if (!isMyAction) return waitingUI('選擇探險地點')
     return (
       <div className="bg-gray-800 rounded-lg p-4">
         <div className="text-white text-center mb-3">選擇探險地點</div>
@@ -243,15 +274,8 @@ export const ActionBar = ({ disabled = false }: ActionBarProps) => {
 
   // 目標玩家選擇 UI
   if (pendingTargetPlayer) {
-    if (isCurrentAI) {
-      return (
-        <div className="bg-gray-800 rounded-lg p-4">
-          <div className="text-gray-400 text-center animate-pulse">
-            🤖 {currentPlayer?.name} 正在選擇目標...
-          </div>
-        </div>
-      )
-    }
+    if (isCurrentAI) return waitingUI('選擇目標')
+    if (!isMyAction) return waitingUI('選擇目標')
     const otherPlayers = players.filter((_, i) => i !== currentPlayerIndex)
     const actionName = actionNames[pendingTargetPlayer.action] || pendingTargetPlayer.action
 
@@ -286,15 +310,8 @@ export const ActionBar = ({ disabled = false }: ActionBarProps) => {
 
   // 空降職業選擇 UI
   if (pendingParachute) {
-    if (isCurrentAI) {
-      return (
-        <div className="bg-gray-800 rounded-lg p-4">
-          <div className="text-gray-400 text-center animate-pulse">
-            🤖 {currentPlayer?.name} 正在選擇職業...
-          </div>
-        </div>
-      )
-    }
+    if (isCurrentAI) return waitingUI('選擇職業')
+    if (!isMyAction) return waitingUI('選擇職業')
     return (
       <div className="bg-gray-800 rounded-lg p-4">
         <div className="text-white text-center mb-3">空降：選擇要就職的職業（無條件）</div>

@@ -14,6 +14,11 @@ interface SyncedUIState {
     targetPlayerId?: string
     respondingPlayerIndex: number
     passedPlayerIndices: number[]
+    invalidChain?: { playerIndex: number; card: Card }[]
+  } | null
+  pendingTargetPlayer: {
+    action: string
+    cardIndex: number
   } | null
   pendingDiscard: {
     playerIndex: number
@@ -76,6 +81,8 @@ export const useGameSync = () => {
       showEventModal: false,  // 不同步這個欄位
       // 同步反應卡狀態（影響多人遊戲流程）
       pendingFunctionCard: state.pendingFunctionCard ?? null,
+      // 同步目標選擇狀態（偷竊、搶劫、陷害、空降）
+      pendingTargetPlayer: state.pendingTargetPlayer ?? null,
       // 同步棄牌狀態
       pendingDiscard: state.pendingDiscard ?? null,
     }
@@ -120,6 +127,7 @@ export const useGameSync = () => {
         ? {
             ...syncedState.pendingFunctionCard,
             passedPlayerIndices: syncedState.pendingFunctionCard.passedPlayerIndices ?? [],
+            invalidChain: syncedState.pendingFunctionCard.invalidChain ?? [],
           }
         : null
       useGameStore.setState({
@@ -135,9 +143,15 @@ export const useGameSync = () => {
         eventLog: firebaseGameState.eventLog ?? [],
         actionLog: firebaseGameState.actionLog ?? [],
         selectedCardIndex: firebaseGameState.selectedCardIndex ?? null,
-        // showEventModal 不從 Firebase 同步，讓每個玩家自己管理
+        // 只在「進入」事件階段時設 showEventModal: true（本地 phase 尚非 event）
+        // 若本地已在 event 階段（echo 或已確認），不覆蓋，避免卡住自動推進
+        ...(firebaseGameState.phase === 'event' && useGameStore.getState().phase !== 'event'
+          ? { showEventModal: true }
+          : {}),
         // 同步反應卡狀態（包含 passedPlayerIndices 的 fallback）
         pendingFunctionCard,
+        // 同步目標選擇狀態
+        pendingTargetPlayer: syncedState.pendingTargetPlayer ?? null,
         // 同步棄牌狀態
         pendingDiscard: syncedState.pendingDiscard
           ? {

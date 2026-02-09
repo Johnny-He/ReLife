@@ -417,6 +417,181 @@ describe('evaluateAchievements - richest', () => {
   })
 })
 
+// === 職業相關成就測試 ===
+
+describe('evaluateAchievements - first job', () => {
+  it('should_award_player_with_earliest_firstJobTurn', () => {
+    const players = [
+      createMockPlayer({ id: 'p1', firstJobTurn: 5 }),
+      createMockPlayer({ id: 'p2', firstJobTurn: 8 }),
+      createMockPlayer({ id: 'p3' }),
+    ]
+    const result = evaluateAchievements(players)
+
+    expect(result.get('p1')!.some(a => a.id === 'first_job')).toBe(true)
+    expect(result.get('p2')!.some(a => a.id === 'first_job')).toBe(false)
+  })
+
+  it('should_award_nobody_when_tied', () => {
+    const players = [
+      createMockPlayer({ id: 'p1', firstJobTurn: 5 }),
+      createMockPlayer({ id: 'p2', firstJobTurn: 5 }),
+    ]
+    const result = evaluateAchievements(players)
+
+    expect(result.get('p1')!.some(a => a.id === 'first_job')).toBe(false)
+    expect(result.get('p2')!.some(a => a.id === 'first_job')).toBe(false)
+  })
+
+  it('should_award_nobody_when_no_one_has_job', () => {
+    const players = [
+      createMockPlayer({ id: 'p1' }),
+      createMockPlayer({ id: 'p2' }),
+    ]
+    const result = evaluateAchievements(players)
+
+    expect(result.get('p1')!.some(a => a.id === 'first_job')).toBe(false)
+  })
+})
+
+describe('evaluateAchievements - first promotion', () => {
+  it('should_award_player_with_earliest_firstPromotionTurn', () => {
+    const players = [
+      createMockPlayer({ id: 'p1', firstPromotionTurn: 10 }),
+      createMockPlayer({ id: 'p2', firstPromotionTurn: 15 }),
+    ]
+    const result = evaluateAchievements(players)
+
+    expect(result.get('p1')!.some(a => a.id === 'first_promotion')).toBe(true)
+    expect(result.get('p2')!.some(a => a.id === 'first_promotion')).toBe(false)
+  })
+
+  it('should_award_nobody_when_tied', () => {
+    const players = [
+      createMockPlayer({ id: 'p1', firstPromotionTurn: 10 }),
+      createMockPlayer({ id: 'p2', firstPromotionTurn: 10 }),
+    ]
+    const result = evaluateAchievements(players)
+
+    expect(result.get('p1')!.some(a => a.id === 'first_promotion')).toBe(false)
+  })
+
+  it('should_award_nobody_when_no_one_promoted', () => {
+    const players = [
+      createMockPlayer({ id: 'p1' }),
+      createMockPlayer({ id: 'p2' }),
+    ]
+    const result = evaluateAchievements(players)
+
+    expect(result.get('p1')!.some(a => a.id === 'first_promotion')).toBe(false)
+  })
+})
+
+describe('evaluateAchievements - most job changes', () => {
+  it('should_award_player_with_most_job_changes', () => {
+    const players = [
+      createMockPlayer({ id: 'p1', jobChangeCount: 3 }),
+      createMockPlayer({ id: 'p2', jobChangeCount: 2 }),
+      createMockPlayer({ id: 'p3', jobChangeCount: 1 }),
+    ]
+    const result = evaluateAchievements(players)
+
+    expect(result.get('p1')!.some(a => a.id === 'most_job_changes')).toBe(true)
+    expect(result.get('p2')!.some(a => a.id === 'most_job_changes')).toBe(false)
+  })
+
+  it('should_award_nobody_when_tied', () => {
+    const players = [
+      createMockPlayer({ id: 'p1', jobChangeCount: 3 }),
+      createMockPlayer({ id: 'p2', jobChangeCount: 3 }),
+    ]
+    const result = evaluateAchievements(players)
+
+    expect(result.get('p1')!.some(a => a.id === 'most_job_changes')).toBe(false)
+  })
+
+  it('should_require_at_least_2_changes', () => {
+    const players = [
+      createMockPlayer({ id: 'p1', jobChangeCount: 1 }),
+      createMockPlayer({ id: 'p2', jobChangeCount: 0 }),
+    ]
+    const result = evaluateAchievements(players)
+
+    expect(result.get('p1')!.some(a => a.id === 'most_job_changes')).toBe(false)
+  })
+})
+
+describe('evaluateAchievements - late bloomer', () => {
+  it('should_award_player_with_latest_firstJobTurn', () => {
+    const players = [
+      createMockPlayer({ id: 'p1', firstJobTurn: 5 }),
+      createMockPlayer({ id: 'p2', firstJobTurn: 20 }),
+      createMockPlayer({ id: 'p3' }),
+    ]
+    const result = evaluateAchievements(players)
+
+    expect(result.get('p2')!.some(a => a.id === 'late_bloomer')).toBe(true)
+    expect(result.get('p1')!.some(a => a.id === 'late_bloomer')).toBe(false)
+  })
+
+  it('should_award_nobody_when_tied', () => {
+    const players = [
+      createMockPlayer({ id: 'p1', firstJobTurn: 20 }),
+      createMockPlayer({ id: 'p2', firstJobTurn: 20 }),
+    ]
+    const result = evaluateAchievements(players)
+
+    expect(result.get('p1')!.some(a => a.id === 'late_bloomer')).toBe(false)
+  })
+
+  it('should_not_award_when_only_one_person_has_job', () => {
+    const players = [
+      createMockPlayer({ id: 'p1', firstJobTurn: 10 }),
+      createMockPlayer({ id: 'p2' }),
+    ]
+    const result = evaluateAchievements(players)
+
+    // Only one person has a job — they're both first AND last, so no award
+    expect(result.get('p1')!.some(a => a.id === 'late_bloomer')).toBe(false)
+  })
+})
+
+describe('evaluateAchievements - never worked', () => {
+  it('should_award_sole_unemployed_player', () => {
+    const players = [
+      createMockPlayer({ id: 'p1', firstJobTurn: 5 }),
+      createMockPlayer({ id: 'p2', firstJobTurn: 10 }),
+      createMockPlayer({ id: 'p3' }), // never worked
+    ]
+    const result = evaluateAchievements(players)
+
+    expect(result.get('p3')!.some(a => a.id === 'never_worked')).toBe(true)
+  })
+
+  it('should_award_nobody_when_multiple_never_worked', () => {
+    const players = [
+      createMockPlayer({ id: 'p1', firstJobTurn: 5 }),
+      createMockPlayer({ id: 'p2' }),
+      createMockPlayer({ id: 'p3' }),
+    ]
+    const result = evaluateAchievements(players)
+
+    expect(result.get('p2')!.some(a => a.id === 'never_worked')).toBe(false)
+    expect(result.get('p3')!.some(a => a.id === 'never_worked')).toBe(false)
+  })
+
+  it('should_award_nobody_when_everyone_has_job', () => {
+    const players = [
+      createMockPlayer({ id: 'p1', firstJobTurn: 5 }),
+      createMockPlayer({ id: 'p2', firstJobTurn: 10 }),
+    ]
+    const result = evaluateAchievements(players)
+
+    expect(result.get('p1')!.some(a => a.id === 'never_worked')).toBe(false)
+    expect(result.get('p2')!.some(a => a.id === 'never_worked')).toBe(false)
+  })
+})
+
 // === calculateGameResult with achievements 測試 ===
 
 describe('calculateGameResult - achievements integration', () => {
@@ -460,6 +635,178 @@ describe('calculateGameResult - achievements integration', () => {
     const result = calculateGameResult(players)
     // p1: 50000 + 1500 + 小康(5000) + 首富(5000) = 61500
     // p2: 48000 + 1500 = 49500
+    expect(result.rankings[0].player.id).toBe('p1')
+  })
+})
+
+// === 個人夢想成就測試 ===
+
+const createCharacterPlayer = (characterId: string, personalDream: string, overrides: Partial<Player> = {}): Player =>
+  createMockPlayer({
+    character: {
+      id: characterId,
+      name: '測試角色',
+      gender: 'male',
+      initialStats: { intelligence: 5, stamina: 5, charisma: 5 },
+      initialMoney: 3000,
+      marriageRequirement: { intelligence: 0, stamina: 0, charisma: 0 },
+      personalDream,
+    },
+    ...overrides,
+  })
+
+const engineerJob: Job = {
+  id: 'engineer', name: '工程師', category: 'intelligence',
+  levels: [
+    { name: '工程師', requiredStats: { intelligence: 8 }, salary: [2000, 2500, 3000] },
+    { name: '資深工程師', requiredStats: { intelligence: 12 }, salary: [3500, 4000, 5000] },
+    { name: '技術總監', requiredStats: { intelligence: 16 }, salary: [5000, 6000, 7000] },
+  ],
+}
+
+const magicianJob: Job = {
+  id: 'magician', name: '魔術師', category: 'charisma',
+  levels: [
+    { name: '街頭魔術師', requiredStats: { charisma: 6 }, salary: [1000, 1500, 2000] },
+    { name: '舞台魔術師', requiredStats: { charisma: 10 }, salary: [2500, 3000, 4000] },
+    { name: '知名魔術師', requiredStats: { charisma: 15 }, salary: [4000, 5000, 6000] },
+  ],
+}
+
+describe('evaluateAchievements - dream achievements', () => {
+  it('should_award_zheng_an_qi_dream_when_engineer', () => {
+    const players = [
+      createCharacterPlayer('zheng-an-qi', '當工程師', { id: 'p1', job: engineerJob, jobLevel: 0 }),
+      createMockPlayer({ id: 'p2', money: 5000 }),
+    ]
+    const result = evaluateAchievements(players)
+
+    const dreamAchievements = result.get('p1')!.filter(a => a.id.startsWith('dream_'))
+    expect(dreamAchievements).toHaveLength(1)
+    expect(dreamAchievements[0].id).toBe('dream_zheng-an-qi')
+    expect(dreamAchievements[0].name).toBe('夢想成真')
+    expect(dreamAchievements[0].score).toBe(8000)
+  })
+
+  it('should_award_yao_xin_bei_dream_when_money_100k', () => {
+    const players = [
+      createCharacterPlayer('yao-xin-bei', '賺到 $100,000', { id: 'p1', money: 100000 }),
+      createMockPlayer({ id: 'p2', money: 5000 }),
+    ]
+    const result = evaluateAchievements(players)
+
+    expect(result.get('p1')!.some(a => a.id === 'dream_yao-xin-bei')).toBe(true)
+  })
+
+  it('should_award_wu_xin_yi_dream_when_intelligence_over_30', () => {
+    const players = [
+      createCharacterPlayer('wu-xin-yi', '智力 > 30', {
+        id: 'p1',
+        stats: { intelligence: 31, stamina: 5, charisma: 5 },
+      }),
+      createMockPlayer({ id: 'p2' }),
+    ]
+    const result = evaluateAchievements(players)
+
+    expect(result.get('p1')!.some(a => a.id === 'dream_wu-xin-yi')).toBe(true)
+  })
+
+  it('should_not_award_xu_rui_he_dream_when_magician_level_1', () => {
+    const players = [
+      createCharacterPlayer('xu-rui-he', '當知名魔術師', { id: 'p1', job: magicianJob, jobLevel: 1 }),
+      createMockPlayer({ id: 'p2' }),
+    ]
+    const result = evaluateAchievements(players)
+
+    expect(result.get('p1')!.some(a => a.id === 'dream_xu-rui-he')).toBe(false)
+  })
+
+  it('should_award_xu_rui_he_dream_when_magician_level_2', () => {
+    const players = [
+      createCharacterPlayer('xu-rui-he', '當知名魔術師', { id: 'p1', job: magicianJob, jobLevel: 2 }),
+      createMockPlayer({ id: 'p2' }),
+    ]
+    const result = evaluateAchievements(players)
+
+    expect(result.get('p1')!.some(a => a.id === 'dream_xu-rui-he')).toBe(true)
+  })
+
+  it('should_award_liang_si_yu_dream_when_doctor', () => {
+    const doctorJob: Job = {
+      id: 'doctor', name: '醫生', category: 'intelligence',
+      levels: [
+        { name: '實習醫生', requiredStats: { intelligence: 10 }, salary: [2000, 2500, 3000] },
+        { name: '主治醫師', requiredStats: { intelligence: 14 }, salary: [4000, 5000, 6000] },
+        { name: '院長', requiredStats: { intelligence: 18 }, salary: [6000, 7000, 8000] },
+      ],
+    }
+    const players = [
+      createCharacterPlayer('liang-si-yu', '當醫生', { id: 'p1', job: doctorJob, jobLevel: 0 }),
+      createMockPlayer({ id: 'p2' }),
+    ]
+    const result = evaluateAchievements(players)
+
+    expect(result.get('p1')!.some(a => a.id === 'dream_liang-si-yu')).toBe(true)
+  })
+
+  it('should_award_zhuang_yu_cheng_dream_when_singer', () => {
+    const singerJob: Job = {
+      id: 'singer', name: '歌手', category: 'charisma',
+      levels: [
+        { name: '街頭藝人', requiredStats: { charisma: 6 }, salary: [1000, 1500, 2000] },
+        { name: '駐唱歌手', requiredStats: { charisma: 10 }, salary: [2500, 3000, 4000] },
+        { name: '知名歌手', requiredStats: { charisma: 15 }, salary: [4000, 5000, 6000] },
+      ],
+    }
+    const players = [
+      createCharacterPlayer('zhuang-yu-cheng', '歌手', { id: 'p1', job: singerJob, jobLevel: 0 }),
+      createMockPlayer({ id: 'p2' }),
+    ]
+    const result = evaluateAchievements(players)
+
+    expect(result.get('p1')!.some(a => a.id === 'dream_zhuang-yu-cheng')).toBe(true)
+  })
+
+  it('should_not_award_wu_xin_yi_dream_when_intelligence_exactly_30', () => {
+    const players = [
+      createCharacterPlayer('wu-xin-yi', '智力 > 30', {
+        id: 'p1',
+        stats: { intelligence: 30, stamina: 5, charisma: 5 },
+      }),
+      createMockPlayer({ id: 'p2' }),
+    ]
+    const result = evaluateAchievements(players)
+
+    expect(result.get('p1')!.some(a => a.id === 'dream_wu-xin-yi')).toBe(false)
+  })
+
+  it('should_not_award_dream_for_character_without_condition', () => {
+    // 陳建志的夢想是「跟柯若亞結婚」— 無法在現有系統中判定
+    const players = [
+      createCharacterPlayer('chen-jian-zhi', '跟柯若亞結婚', { id: 'p1', money: 200000 }),
+      createMockPlayer({ id: 'p2' }),
+    ]
+    const result = evaluateAchievements(players)
+
+    expect(result.get('p1')!.some(a => a.id.startsWith('dream_'))).toBe(false)
+  })
+})
+
+describe('calculateGameResult - dream achievements integration', () => {
+  it('should_include_dream_score_in_total_and_ranking', () => {
+    // 同金錢避免 richest 干擾，純粹測試夢想分數影響排名
+    const players = [
+      createCharacterPlayer('zheng-an-qi', '當工程師', { id: 'p1', money: 5000, job: engineerJob, jobLevel: 0 }),
+      createMockPlayer({ id: 'p2', money: 5000 }),
+    ]
+
+    const result = calculateGameResult(players)
+    const dreamPlayer = result.rankings.find(r => r.player.id === 'p1')!
+
+    // p1 應有夢想成就 8000 分
+    expect(dreamPlayer.achievements.some(a => a.id === 'dream_zheng-an-qi')).toBe(true)
+    expect(dreamPlayer.score.achievements).toBeGreaterThanOrEqual(8000)
+    // p1: 5000 + 1500 + 1000(job) + 8000(dream) = 15500 > p2: 5000 + 1500 = 6500
     expect(result.rankings[0].player.id).toBe('p1')
   })
 })

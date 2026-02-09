@@ -689,4 +689,150 @@ describe('applyEventEffect', () => {
     expect(result.eventLog.length).toBeGreaterThan(0)
     expect(result.eventLog[0]).toContain('紅包')
   })
+
+  // --- 特殊事件：skip_turn ---
+  it('should_set_isSkipTurn_for_targeted_players', () => {
+    const mockJob = {
+      id: 'worker', name: '工人', category: 'stamina' as const,
+      levels: [{ name: '工人', requiredStats: { stamina: 5 }, salary: [1000] }],
+    }
+    const state = createMockGameState({
+      players: [
+        createMockPlayer({ id: 'p1', name: 'A', job: mockJob }),
+        createMockPlayer({ id: 'p2', name: 'B', job: null }),
+        createMockPlayer({ id: 'p3', name: 'C', job: mockJob }),
+      ],
+      currentEvent: createMockEvent({
+        target: { type: 'has_job' },
+        effect: { type: 'special', handler: 'skip_turn' },
+      }),
+    })
+    const result = applyEventEffect(state)
+
+    expect(result.players[0].isSkipTurn).toBe(true)
+    expect(result.players[1].isSkipTurn).toBe(false)
+    expect(result.players[2].isSkipTurn).toBe(true)
+  })
+
+  // --- 特殊事件：pass_cards_left ---
+  it('should_pass_one_card_left_to_next_player', () => {
+    const state = createMockGameState({
+      players: [
+        createMockPlayer({ id: 'p1', name: 'A', hand: [createMockCard('a1'), createMockCard('a2')] }),
+        createMockPlayer({ id: 'p2', name: 'B', hand: [createMockCard('b1')] }),
+        createMockPlayer({ id: 'p3', name: 'C', hand: [createMockCard('c1'), createMockCard('c2'), createMockCard('c3')] }),
+      ],
+      currentEvent: createMockEvent({
+        effect: { type: 'special', handler: 'pass_cards_left' },
+      }),
+    })
+    const result = applyEventEffect(state)
+
+    // 每人傳一張給下家（環形），手牌數應不變
+    expect(result.players[0].hand.length).toBe(2)
+    expect(result.players[1].hand.length).toBe(1)
+    expect(result.players[2].hand.length).toBe(3)
+  })
+
+  it('should_handle_pass_cards_when_player_has_no_cards', () => {
+    const state = createMockGameState({
+      players: [
+        createMockPlayer({ id: 'p1', name: 'A', hand: [createMockCard('a1')] }),
+        createMockPlayer({ id: 'p2', name: 'B', hand: [] }),
+      ],
+      currentEvent: createMockEvent({
+        effect: { type: 'special', handler: 'pass_cards_left' },
+      }),
+    })
+    const result = applyEventEffect(state)
+
+    // B 沒牌可傳，A 傳一張給 B
+    // A: 少一張（傳出）+ 0（B沒牌傳來） = 0
+    // B: 不變 + 1（A傳來）= 1
+    expect(result.players[0].hand.length).toBe(0)
+    expect(result.players[1].hand.length).toBe(1)
+  })
+
+  // --- 特殊事件：charity ---
+  it('should_transfer_2000_from_richest_to_poorest', () => {
+    const state = createMockGameState({
+      players: [
+        createMockPlayer({ id: 'p1', name: '富人', money: 10000 }),
+        createMockPlayer({ id: 'p2', name: '中等', money: 5000 }),
+        createMockPlayer({ id: 'p3', name: '窮人', money: 1000 }),
+      ],
+      currentEvent: createMockEvent({
+        effect: { type: 'special', handler: 'charity' },
+      }),
+    })
+    const result = applyEventEffect(state)
+
+    expect(result.players[0].money).toBe(8000)  // 10000 - 2000
+    expect(result.players[1].money).toBe(5000)  // 不受影響
+    expect(result.players[2].money).toBe(3000)  // 1000 + 2000
+  })
+
+  it('should_not_transfer_if_richest_and_poorest_are_same', () => {
+    const state = createMockGameState({
+      players: [
+        createMockPlayer({ id: 'p1', name: '唯一', money: 5000 }),
+      ],
+      currentEvent: createMockEvent({
+        effect: { type: 'special', handler: 'charity' },
+      }),
+    })
+    const result = applyEventEffect(state)
+
+    expect(result.players[0].money).toBe(5000) // 不變
+  })
+
+  // --- 目標篩選：has_job ---
+  it('should_apply_effect_only_to_players_with_jobs', () => {
+    const mockJob = {
+      id: 'worker', name: '工人', category: 'stamina' as const,
+      levels: [{ name: '工人', requiredStats: { stamina: 5 }, salary: [1000] }],
+    }
+    const state = createMockGameState({
+      players: [
+        createMockPlayer({ id: 'p1', name: '有工作', money: 3000, job: mockJob }),
+        createMockPlayer({ id: 'p2', name: '無業', money: 3000, job: null }),
+      ],
+      currentEvent: createMockEvent({
+        target: { type: 'has_job' },
+        effect: { type: 'money_change', value: -500 },
+      }),
+    })
+    const result = applyEventEffect(state)
+
+    expect(result.players[0].money).toBe(2500) // 有工作，扣錢
+    expect(result.players[1].money).toBe(3000) // 無業，不受影響
+  })
+
+  // --- 目標篩選：specific_job ---
+  it('should_apply_effect_only_to_specific_job_players', () => {
+    const teacherJob = {
+      id: 'teacher', name: '老師', category: 'intelligence' as const,
+      levels: [{ name: '老師', requiredStats: { intelligence: 5 }, salary: [2000] }],
+    }
+    const workerJob = {
+      id: 'worker', name: '工人', category: 'stamina' as const,
+      levels: [{ name: '工人', requiredStats: { stamina: 5 }, salary: [1000] }],
+    }
+    const state = createMockGameState({
+      players: [
+        createMockPlayer({ id: 'p1', name: '老師', money: 3000, job: teacherJob }),
+        createMockPlayer({ id: 'p2', name: '工人', money: 3000, job: workerJob }),
+        createMockPlayer({ id: 'p3', name: '無業', money: 3000, job: null }),
+      ],
+      currentEvent: createMockEvent({
+        target: { type: 'specific_job', jobIds: ['teacher'] },
+        effect: { type: 'money_change', value: 1000 },
+      }),
+    })
+    const result = applyEventEffect(state)
+
+    expect(result.players[0].money).toBe(4000) // 老師，加錢
+    expect(result.players[1].money).toBe(3000) // 工人，不受影響
+    expect(result.players[2].money).toBe(3000) // 無業，不受影響
+  })
 })

@@ -20,7 +20,10 @@ export const PlayerPanel = ({ player, isCurrentPlayer, isCompact = false }: Play
     return (
       <div className={`${bgColor} ${borderColor} border-2 rounded-lg p-2 text-sm`}>
         <div className="flex justify-between items-center mb-1">
-          <span className="font-bold text-white">{player.name}</span>
+          <div>
+            <span className="font-bold text-white">{player.name}</span>
+            <span className="text-gray-400 text-xs ml-1">{player.character.name}</span>
+          </div>
           <MoneyDisplay value={player.money} size="small" />
         </div>
         <div className="flex gap-2 text-xs">
@@ -46,12 +49,25 @@ export const PlayerPanel = ({ player, isCurrentPlayer, isCompact = false }: Play
             <p className="text-xs text-gray-500 mt-1 italic">{player.character.description}</p>
           )}
         </div>
-        {isCurrentPlayer && (
-          <span className="bg-yellow-500 text-black text-xs px-2 py-1 rounded">
-            當前回合
-          </span>
-        )}
       </div>
+
+      {/* 夢想與期望 */}
+      {(player.character.personalDream || player.character.familyExpectation) && (
+        <div className="mb-3 text-sm space-y-1">
+          {player.character.personalDream && (
+            <div>
+              <span className="text-gray-400">個人夢想: </span>
+              <span className="text-purple-300">{player.character.personalDream}</span>
+            </div>
+          )}
+          {player.character.familyExpectation && (
+            <div>
+              <span className="text-gray-400">父母期望: </span>
+              <span className="text-orange-300">{player.character.familyExpectation}</span>
+            </div>
+          )}
+        </div>
+      )}
 
       {/* 金錢 */}
       <div className="mb-3">

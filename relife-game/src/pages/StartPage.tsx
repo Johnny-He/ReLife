@@ -253,16 +253,61 @@ export const StartPage = ({ onOnlineClick }: StartPageProps) => {
             <p>30 回合後，總分最高的玩家獲勝。總分 = 金錢 + 屬性總和 × 100 + 職業加成 + 成就加成。</p>
           </div>
           <div>
-            <h3 className="font-bold text-white mb-1">成就系統</h3>
-            <p className="mb-1">遊戲結束時依金錢頒發成就，獲得額外加分（只取最高一級）：</p>
-            <ul className="list-disc list-inside space-y-0.5">
-              <li>人生贏家 ≥ $200,000（+25,000）</li>
-              <li>財富自由 ≥ $150,000（+18,000）</li>
-              <li>十萬富翁 ≥ $100,000（+12,000）</li>
-              <li>富裕人生 ≥ $80,000（+8,000）</li>
-              <li>小康生活 ≥ $50,000（+5,000）</li>
-            </ul>
-            <p className="mt-1">另有唯一成就：「率先致富」第一個存到 $100,000（+10,000）、「首富」最多金錢者（+5,000），平手則無人獲得。</p>
+            <h3 className="font-bold text-white mb-2">成就系統</h3>
+            <p className="mb-2">金錢門檻成就（只取最高一級）：</p>
+            <table className="w-full text-sm mb-3">
+              <thead>
+                <tr className="text-left text-gray-400 border-b border-gray-600">
+                  <th className="pb-1">成就</th>
+                  <th className="pb-1">條件</th>
+                  <th className="pb-1 text-right">加分</th>
+                </tr>
+              </thead>
+              <tbody className="text-gray-300">
+                <tr><td>人生贏家</td><td>金錢 ≥ $200,000</td><td className="text-right text-yellow-400">+25,000</td></tr>
+                <tr><td>財富自由</td><td>金錢 ≥ $150,000</td><td className="text-right text-yellow-400">+18,000</td></tr>
+                <tr><td>十萬富翁</td><td>金錢 ≥ $100,000</td><td className="text-right text-yellow-400">+12,000</td></tr>
+                <tr><td>富裕人生</td><td>金錢 ≥ $80,000</td><td className="text-right text-yellow-400">+8,000</td></tr>
+                <tr><td>小康生活</td><td>金錢 ≥ $50,000</td><td className="text-right text-yellow-400">+5,000</td></tr>
+              </tbody>
+            </table>
+            <p className="mb-2">唯一成就（每場最多一人，平手則無人獲得）：</p>
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="text-left text-gray-400 border-b border-gray-600">
+                  <th className="pb-1">成就</th>
+                  <th className="pb-1">條件</th>
+                  <th className="pb-1 text-right">加分</th>
+                </tr>
+              </thead>
+              <tbody className="text-gray-300">
+                <tr><td>率先致富</td><td>第一個存到 $100,000</td><td className="text-right text-yellow-400">+10,000</td></tr>
+                <tr><td>首富</td><td>擁有最多金錢</td><td className="text-right text-yellow-400">+5,000</td></tr>
+                <tr><td>第一個就業</td><td>最早獲得職業</td><td className="text-right text-yellow-400">+3,000</td></tr>
+                <tr><td>先驅者</td><td>第一個升遷</td><td className="text-right text-yellow-400">+5,000</td></tr>
+                <tr><td>轉職達人</td><td>轉職次數最多</td><td className="text-right text-yellow-400">+3,000</td></tr>
+                <tr><td>大器晚成</td><td>最晚獲得職業</td><td className="text-right text-yellow-400">+5,000</td></tr>
+                <tr><td>躺平高手</td><td>全場從未就業</td><td className="text-right text-yellow-400">+8,000</td></tr>
+              </tbody>
+            </table>
+            <p className="mb-2 mt-3">個人夢想成就（達成角色的夢想 +8,000）：</p>
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="text-left text-gray-400 border-b border-gray-600">
+                  <th className="pb-1">角色</th>
+                  <th className="pb-1">夢想</th>
+                  <th className="pb-1">判定條件</th>
+                </tr>
+              </thead>
+              <tbody className="text-gray-300">
+                <tr><td>鄭安琪</td><td>當工程師</td><td>職業為工程師</td></tr>
+                <tr><td>姚欣蓓</td><td>賺到 $100,000</td><td>金錢 ≥ $100,000</td></tr>
+                <tr><td>許睿和</td><td>當知名魔術師</td><td>魔術師且職等 ≥ 2</td></tr>
+                <tr><td>梁思妤</td><td>當醫生</td><td>職業為醫生</td></tr>
+                <tr><td>吳欣怡</td><td>智力 &gt; 30</td><td>智力超過 30</td></tr>
+                <tr><td>莊語澄</td><td>歌手</td><td>職業為歌手</td></tr>
+              </tbody>
+            </table>
           </div>
           <div>
             <h3 className="font-bold text-white mb-1">遊戲人數</h3>

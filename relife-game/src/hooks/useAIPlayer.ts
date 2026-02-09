@@ -335,11 +335,21 @@ export const useAIPlayer = (disabled: boolean = false) => {
       )
 
       if (invalidCardIndex !== -1) {
-        // 決定是否使用無效卡
-        const shouldUse = aiShouldUseInvalidCard(
-          state.pendingFunctionCard.card,
-          responder
-        )
+        const chainLength = (state.pendingFunctionCard.invalidChain ?? []).length
+        const isSource = state.pendingFunctionCard.respondingPlayerIndex === state.pendingFunctionCard.sourcePlayerIndex
+        let shouldUse = false
+
+        if (isSource && chainLength % 2 === 1) {
+          // AI 是功能卡使用者且卡牌被取消 → 一定反制
+          shouldUse = true
+        } else if (!isSource && chainLength % 2 === 0) {
+          // 卡牌目前生效，AI 評估威脅決定是否取消
+          shouldUse = aiShouldUseInvalidCard(
+            state.pendingFunctionCard.card,
+            responder
+          )
+        }
+        // 其他情況（AI是source但卡片生效、AI不是source但卡片已取消）→ 不需反制
 
         if (shouldUse) {
           applyInvalidCard(invalidCardIndex)

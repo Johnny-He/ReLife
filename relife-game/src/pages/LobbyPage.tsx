@@ -133,7 +133,7 @@ export const LobbyPage = ({ onStartGame, onBack }: LobbyPageProps) => {
                     <button
                       key={char.id}
                       onClick={() => !isTaken && changeCharacter(char.id)}
-                      disabled={isTaken || currentPlayer.ready}
+                      disabled={isTaken || (currentPlayer.ready && !isHost())}
                       className={`p-2 rounded text-left text-sm ${
                         isSelected
                           ? 'bg-blue-600 text-white'

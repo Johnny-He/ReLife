@@ -1,5 +1,12 @@
 export const changelog = [
   {
+    version: 'v1.4.9',
+    date: '2026-02-10',
+    changes: [
+      '移除傳牌隨機事件（隨機事件池 27→26 個）',
+    ],
+  },
+  {
     version: 'v1.4.8',
     date: '2026-02-10',
     changes: [

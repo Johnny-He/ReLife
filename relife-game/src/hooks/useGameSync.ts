@@ -148,6 +148,11 @@ export const useGameSync = () => {
         ...(firebaseGameState.phase === 'event' && useGameStore.getState().phase !== 'event'
           ? { showEventModal: true }
           : {}),
+        // 回合或當前玩家變動時清除本地 lastMessage，避免顯示過時訊息
+        ...((firebaseGameState.currentPlayerIndex !== useGameStore.getState().currentPlayerIndex
+          || firebaseGameState.turn !== useGameStore.getState().turn)
+          ? { lastMessage: null }
+          : {}),
         // 同步反應卡狀態（包含 passedPlayerIndices 的 fallback）
         pendingFunctionCard,
         // 同步目標選擇狀態

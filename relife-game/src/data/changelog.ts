@@ -1,5 +1,13 @@
 export const changelog = [
   {
+    version: 'v1.4.8',
+    date: '2026-02-10',
+    changes: [
+      '夢想成就標籤顯示具體夢想內容（例：夢想成真：當工程師）',
+      '修復線上模式對手行動後中間訊息顯示過時的問題',
+    ],
+  },
+  {
     version: 'v1.4.7',
     date: '2026-02-10',
     changes: [

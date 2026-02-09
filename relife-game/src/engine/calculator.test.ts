@@ -684,7 +684,7 @@ describe('evaluateAchievements - dream achievements', () => {
     const dreamAchievements = result.get('p1')!.filter(a => a.id.startsWith('dream_'))
     expect(dreamAchievements).toHaveLength(1)
     expect(dreamAchievements[0].id).toBe('dream_zheng-an-qi')
-    expect(dreamAchievements[0].name).toBe('夢想成真')
+    expect(dreamAchievements[0].name).toBe('夢想成真：當工程師')
     expect(dreamAchievements[0].score).toBe(8000)
   })
 

@@ -179,7 +179,7 @@ function evaluateDreamAchievements(players: Player[], result: Map<string, Achiev
     if (condition && condition(player)) {
       result.get(player.id)!.push({
         id: `dream_${player.character.id}`,
-        name: '夢想成真',
+        name: `夢想成真：${player.character.personalDream}`,
         description: player.character.personalDream!,
         score: 8000,
       })

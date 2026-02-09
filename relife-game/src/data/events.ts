@@ -230,15 +230,6 @@ export const randomEvents: GameEvent[] = [
     target: { type: 'all' },
     effect: { type: 'draw_cards', count: 1 },
   },
-  {
-    id: 'pass-cards',
-    turn: 'random',
-    name: '傳牌',
-    description: '所有人將一張手牌往左傳！',
-    target: { type: 'all' },
-    effect: { type: 'special', handler: 'pass_cards_left' },
-  },
-
   // === 暫停事件 ===
   {
     id: 'typhoon',
